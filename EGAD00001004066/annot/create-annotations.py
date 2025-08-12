@@ -68,3 +68,19 @@ sample_fastq_annotation = (
 )
 
 sample_fastq_annotation.write_csv("sample_fastq_annotations.tsv", separator="\t")
+
+
+### Generate a count of samples per tissue type
+
+sample_count = (
+	sample_metadata_refined
+	.group_by(["tissue_type"])
+	.agg([
+		((pl.col("preservation") == "FFPE") & (pl.col("sample_type") == "Tumoral")).sum().alias("n_tumor_ffpe"),
+		((pl.col("preservation") == "Frozen") & (pl.col("sample_type") == "Normal")).sum().alias("n_tumor_frozen"),
+		((pl.col("preservation") == "FFPE") & (pl.col("sample_type") == "Normal")).sum().alias("n_normal_ffpe"),
+		((pl.col("preservation") == "Frozen") & (pl.col("sample_type") == "Tumoral")).sum().alias("n_normal_frozen"),
+	])
+)
+
+sample_count.write_csv("sample_count.tsv", separator="\t")
