@@ -15,7 +15,13 @@ with open(template_script, "r") as f:
 
 for path in tumor_bam_paths:
     
-    sample_script = script.replace('"<<tumor-bam-path>>"', path)
+    tissue = path.split("/")[-2].split("-")[1]
+    
+    normal_bam_paths = [path for path in glob.glob("../../data/bam/*/*.bam") if (("Normal" in path) & (f"{tissue}" in path) & ("Frozen" in path))]
+    
+    normals = "\n\t".join(normal_bam_paths)
+    
+    sample_script = script.replace('"<<tumor-bam-path>>"', path).replace('"<<normal-bam-paths>>"', normals)
     sample_name = os.path.basename(os.path.dirname(path))
     
     outpath = f"{outdir}/{sample_name}_multi-normal_joint-call.sh"
@@ -23,3 +29,5 @@ for path in tumor_bam_paths:
     with open(outpath, "w") as f:
         f.write(sample_script)
     
+
+
