@@ -29,9 +29,10 @@ sample_metadata_refined = (
 	)
 	.drop("title_split")
 	.select(['title','sample_alias','sample_accession_id','preservation','tissue_type','sample_type','phenotype','biological_sex'])
+	.sort(["tissue_type","sample_type","preservation"])
 )
 
-sample_metadata_refined.write_csv("sample_annoations.tsv", separator="\t")
+sample_metadata_refined.write_csv("sample_annotations.tsv", separator="\t")
 
 
 ### Create fastq annotation file

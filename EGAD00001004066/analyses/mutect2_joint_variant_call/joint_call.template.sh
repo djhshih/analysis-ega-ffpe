@@ -5,7 +5,7 @@ set -euo pipefail
 # --- 1. Configuration ---
 
 # Input/Output Directories
-outdir_root="../../data/vcf"
+outdir_root="../../data/somatic_vcf"
 
 # Input BAM Files
 tumor_bam="<<tumor-bam-path>>"
@@ -110,7 +110,19 @@ gatk FilterMutectCalls \
     --contamination-table "${intermediate_dir}/${sample_name}.contamination.table" \
     --tumor-segmentation "${intermediate_dir}/${sample_name}.segments.table" \
     --ob-priors "${intermediate_dir}/${sample_name}.read-orientation-model.tar.gz" \
-    -O "${outdir}/${sample_name}.filtered.vcf.gz"
+    -O "${intermediate_dir}/${sample_name}.filtered.vcf.gz"
+
+
+echo -e "\nStep 5: Selecting filtered variants with BCFtools...\n"
+filter_expression='(FILTER="PASS" | FILTER="orientation")'
+
+bcftools view \
+    -i "$filter_expression" \
+    -o "${outdir}/${sample_name}.vcf.gz" \
+    $vcf
+
+bcftools index -t "${outdir}/${sample_name}.vcf.gz"
+
 
 echo "--- Workflow Complete ---"
 echo "Final filtered VCF is located at: ${outdir}/${sample_name}.filtered.vcf.gz"
