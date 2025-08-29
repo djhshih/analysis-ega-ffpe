@@ -3,6 +3,16 @@
 # This script contains functions for evaluation
 ## This is a work in progress. The functions still needs to be improved for generalizability across multiple projects and datasets
 
+
+### Load necessary libraries
+
+library(io)
+library(precrec)
+library(jsonlite)
+library(argparser)
+library(tidyverse)
+library(glue)
+
 ### Evaluations
 
 #### Create unique identifier for each variant

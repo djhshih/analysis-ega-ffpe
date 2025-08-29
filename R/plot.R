@@ -4,6 +4,19 @@
 ## This is a work in progress. The functions still needs to be improved for generalizability across multiple projects and datasets
 
 
+### Load necessary libraries
+
+library(io)
+library(precrec)
+library(jsonlite)
+library(argparser)
+library(tidyverse)
+library(glue)
+library(patchwork)
+library(grid)
+library(hrbrthemes)
+library(viridis)
+
 ### Plotting
 #### Create a full plot including the ROC & PRC plots, the AUC text panel and the necessary captions/labels
 make.roc.prc.plot <- function(roc.plot, prc.plot, auc_grob, snv_count = NULL, title = NULL, subtitle = NULL, caption = NULL) {
