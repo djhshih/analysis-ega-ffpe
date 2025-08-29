@@ -14,23 +14,27 @@ library(hrbrthemes)
 library(viridis)
 
 
-main.outdir <- "../../evaluations/somatic_vcf"
-ffpe_snvf.dir <- "../../ffpe-snvf/somatic_vcf"
-vcf.dir <- "../../data/somatic_vcf"
+main.outdir <- "../../evaluations/germline_vcf"
+ffpe_snvf.dir <- "../../ffpe-snvf/germline_vcf"
+vcf.dir <- "../../data/germline_vcf"
 
 source("../../../R/eval-plot.R")
 
+## A lookup table to provide information about each sample and allow identification of matched fresh frozen samples
 lookup_table <- read.delim("../../annot/sample_annotations.tsv") |> mutate(sample_name = glue('{gsub(" ", "-", title)}_{sample_alias}'))
 
+## This is a vector of Standard Chromosomes to be used for filtering if the samples contains decoy variants
 standard_chromosomes <- paste0("chr", c(1:22, "X", "Y"))
 
+## Initialize these dataframes
 all.samples.all.models.scores.labels <- data.frame()
 all.sample.summary <- data.frame()
 
+## Obtain the FFPE tumoral and FF tumoral samples from the sample annotations
 ffpe_tumoral <- lookup_table |> filter(preservation == "FFPE", sample_type == "Tumoral")
 frozen_tumoral <- lookup_table |> filter(preservation == "Frozen", sample_type == "Tumoral")
 
-
+## Evaluate each FFPE samples individually
 for (i in seq_len(dim(ffpe_tumoral)[1])) {
 
 	sample_name <- ffpe_tumoral[i, "sample_name"]
@@ -365,3 +369,6 @@ qdraw(all_auc_boxplots$Liver$auprc$MuTect2, file = glue("{outdir}/auprc_liver_mu
 qdraw(all_auc_boxplots$Colon$auprc$MuTect2, file = glue("{outdir}/auprc_colon_mutect2_boxplot.pdf"), width = w, height = h)
 
 print(glue("Done.\nBox-Plots saved to {outdir}/"))
+
+
+
