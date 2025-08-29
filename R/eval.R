@@ -47,11 +47,11 @@ adaptive_fdr_cut <- function(q, fp.cut) {
 	if (length(under) > 0) {
 		top <- under[length(under)];
 		pred <- logical(n);
-		# select the top significant results
+		##### select the top significant results
 		pred[idx[1:top]] <- TRUE;
 		pred
 	} else {
-		# none passes
+		##### none passes
 		rep(FALSE, n)
 	}
 }
@@ -59,9 +59,11 @@ adaptive_fdr_cut <- function(q, fp.cut) {
 #### Function to label the models prediction based on the adaptive_fdr_cut function
 fdr_cut_pred <- function(df, score, fp.cut=0.5) {
 	
+    ##### Split C>T and non C>T mutations into two dataframes
     df.ct <- df |> filter(complete.cases(.data[[score]]))
     df.nct <- df |> filter(!complete.cases(.data[[score]])) |> mutate(score = NA, q = NA, pred = TRUE)
 
+    ##### Predict artifacts based on q-values and adaptive_fdr_cut function
     df.ct.q <- df.ct |>
         mutate(
             score = ifelse(.data[[score]] == 0, .Machine$double.eps, .data[[score]]),
@@ -70,6 +72,7 @@ fdr_cut_pred <- function(df, score, fp.cut=0.5) {
             pred = ifelse(adaptive_fdr_cut(q, fp.cut), TRUE, FALSE)
         )
 
+    ##### Combine the C>T and non C>T dataframes back into one single dataframe
     rbind(df.ct.q, df.nct) |>
 		arrange(chrom, pos)
 }
@@ -107,10 +110,10 @@ make.multimodel.eval.object <- function(scores_labels_df, score_columns = c("FOB
 #### Creates a text panel containing all the AUC metrics for each model
 make.plot.auc.text <- function(multi.model.eval.object, model.names = c("mobsnvf", "vafsnvf", "sobdetector", "microsec")) {
 	
-	# Get AUCs to include in plot
+	##### Get AUCs to include in plot
 	all.model.aucs <- auc(multi.model.eval.object)
 	
-	# Extract AUROC and AUPRC for each model in model.names
+	##### Extract AUROC and AUPRC for each model in model.names
 	auroc <- sapply(model.names, function(m) {
 		all.model.aucs |> filter(modnames == m & curvetypes == "ROC") |> pull(aucs)
 	})
@@ -118,16 +121,16 @@ make.plot.auc.text <- function(multi.model.eval.object, model.names = c("mobsnvf
 		all.model.aucs |> filter(modnames == m & curvetypes == "PRC") |> pull(aucs)
 	})
 
-	# Dynamically build AUROC and AUPRC text lines for each model
+	##### Dynamically build AUROC and AUPRC text lines for each model
 	auroc_lines <- paste0(model.names, "=", round(auroc[model.names], 3))
 	auprc_lines <- paste0(model.names, "=", round(auprc[model.names], 3))
 
-	# Make AUCROC and AUPRC texts to include in the plots
+	##### Make AUCROC and AUPRC texts to include in the plots
 	auc_text <- glue(
 		"\nAUROC: \n{paste(auroc_lines, collapse = '\n')} \n\nAUPRC: \n{paste(auprc_lines, collapse = '\n')}"
 	)
 
-	# Make plot text
+	##### Make plot text
 	auc_grob <- textGrob(
 		auc_text,
 		x = 0, y = 1, just = c("left", "top"),
