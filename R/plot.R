@@ -57,6 +57,42 @@ make.roc.prc.plot <- function(roc.plot, prc.plot, auc_grob, snv_count = NULL, ti
 	return(combined_plot)
 }
 
+#### Creates a text panel containing all the AUC metrics for each model
+make.plot.auc.text <- function(multi.model.eval.object, model.names = c("mobsnvf", "vafsnvf", "sobdetector", "microsec")) {
+	
+	##### Get AUCs to include in plot
+	all.model.aucs <- auc(multi.model.eval.object)
+	
+	##### Extract AUROC and AUPRC for each model in model.names
+	auroc <- sapply(model.names, function(m) {
+		all.model.aucs |> filter(modnames == m & curvetypes == "ROC") |> pull(aucs)
+	})
+	auprc <- sapply(model.names, function(m) {
+		all.model.aucs |> filter(modnames == m & curvetypes == "PRC") |> pull(aucs)
+	})
+
+	##### Dynamically build AUROC and AUPRC text lines for each model
+	auroc_lines <- paste0(model.names, "=", round(auroc[model.names], 3))
+	auprc_lines <- paste0(model.names, "=", round(auprc[model.names], 3))
+
+	##### Make AUCROC and AUPRC texts to include in the plots
+	auc_text <- glue(
+		"\nAUROC: \n{paste(auroc_lines, collapse = '\n')} \n\nAUPRC: \n{paste(auprc_lines, collapse = '\n')}"
+	)
+
+	##### Make plot text
+	auc_grob <- textGrob(
+		auc_text,
+		x = 0, y = 1, just = c("left", "top"),
+		gp = grid::gpar(fontsize = 8, fontfamily = "mono")
+	)
+
+	list(
+		text = auc_text,
+		text.plot.object = auc_grob
+	)
+}
+
 #### Function to mark the cutoff point on the ROC and PRC plots based on different values and save them into separate plots
 mark_mobsnvf_cutoff <- function(scores_truth_df, out_dir, cut_thresholds = NULL){
 

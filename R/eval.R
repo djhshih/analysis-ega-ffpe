@@ -157,7 +157,9 @@ evaluate.roc.prc <- function(model_scores_truth, score_col = "score", truth_col 
 
 	##### Combine everything at the end
 	all_metrics_df <- bind_rows(results_list)
-	##### Replace NaN value for recall = 0 with with the previous precision value to that curve is extrapolated horizontally to the y-axis
+	##### Replace NaN value for precision where recall = 0 with with the previous precision value in the table
+	##### This is done so that the curve is extrapolated horizontally to be anchored to the y-axis
+	##### Allowing for proper calculation of AUPRC
 	all_metrics_df[nrow(all_metrics_df), "precision"] <- all_metrics_df[nrow(all_metrics_df) - 1, "precision"]
 
 	##### Split into ROC and PRC dataframes
