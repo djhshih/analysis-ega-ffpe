@@ -196,15 +196,16 @@ get.precrec.eval.metrics <- function(models_scores_truths_df, sample_name, score
 
 	## Obtain the ROC and PRC coordinates from the precrec eval object
 
-    # 1. Get full data frame from precrec object
+    ## Get full data frame from precrec object
 	precrec_df <- as.data.frame(precrec_all_model_eval)
     
-    # 2. Filter for ROC curve data
+	## Obtain the ROC coordinates from the precrec eval object
+	# 1. Filter for PRC curve data from precrec_df
 	roc_df <- precrec_df[precrec_df$type == "ROC", ]
-    # 3. Add sample_id and remove dsid
+    # 2. Add sample_id and remove dsid
     roc_df$dsid <- NULL
     roc_df$sample_id <- sample_name
-    # 4. Select and rename columns
+    # 3. Select and rename columns
 	roc_df <- roc_df[, c("sample_id", "modname", "x", "y")]
     names(roc_df) <- c("sample_id", "model", "fpr", "tpr")
     precrec_roc <- roc_df
@@ -223,6 +224,7 @@ get.precrec.eval.metrics <- function(models_scores_truths_df, sample_name, score
 
 	## Return the table and the roc and prc coordinates as a list
 	list(
+		precrec_eval_object = precrec_all_model_eval,
 		auc_table = precrec_aucs,
 		roc = precrec_roc,
 		prc = precrec_prc

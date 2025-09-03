@@ -11,7 +11,8 @@ library(glue)
 ## Importing module containing common functions for evaluations
 source("../../../R/eval.R")
 
-### Setup Directories
+# %% [markdown]
+# ### Setup Directories
 
 ## Directory for FFPE SNVF outputs
 ffpe_snvf.dir <- "../../ffpe-snvf/somatic_vcf"
@@ -20,18 +21,18 @@ vcf.dir <- "../../data/somatic_vcf"
 ## Output directory
 main.outdir <- "../../results/somatic_vcf"
 
-### Read Annotation Table
+# %% [markdown]
+# ### Read Annotation Table
 
 ## Read the annotation table
-lookup_table <- read.delim("../../annot/sample_annotations.tsv")
-## create a sample name column
-lookup_table <- mutate(lookup_table, sample_name = glue('{gsub(" ", "-", title)}_{sample_alias}'))
+lookup_table <- read.delim("../../annot/sample_annotations.tsv") |> mutate(sample_name = glue('{gsub(" ", "-", title)}_{sample_alias}'))
 
 ## Stratify annotation table based on FFPE and FF Somatic Variants
-ffpe_tumoral <- filter(lookup_table, preservation == "FFPE", sample_type == "Tumoral")
-frozen_tumoral <- filter(lookup_table, preservation == "Frozen", sample_type == "Tumoral")
+ffpe_tumoral <- lookup_table |> filter(preservation == "FFPE", sample_type == "Tumoral")
+frozen_tumoral <- lookup_table |> filter(preservation == "Frozen", sample_type == "Tumoral")
 
-### Prepare data for evaluation
+# %% [markdown]
+# ### Prepare data for evaluation
 
 prepare.eval.data <- function(ffpe_tumoral, sample_index) {
 
@@ -146,18 +147,50 @@ for (index in seq_along(ffpe_tumoral)){
 	qwrite(eval_data$ground_truth_variants, glue("{out_dir}/{sample_name}_ground_truth_variants.tsv"))
 
 
-	# Evaluation using Precrec
-	eval_data_df <- eval_data$model_scores_labels_truths
-	precrec_eval_metrics <- get.precrec.eval.metrics(eval_data_df, sample_name, score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
+	### Custom Evaluation
+	### Here, I am using my own logic implemented for evaluating the model performance without relying on precrec
+
+	## Get per model evaluation data
+	mobsnvf_scores_truth <- eval_data$model_scores_labels_truths |> select(snv, FOBP, truth)
+	vafsnvf_scores_truth <- eval_data$model_scores_labels_truths |> select(snv, VAFF, truth)
+	sobdetector_scores_truth <- eval_data$model_scores_labels_truths |> select(snv, SOB, truth)
+	gatk_obmm_scores_truth <- eval_data$model_scores_labels_truths |> select(snv, obmm, truth)
+
+	## Obtain ROC and PRC coordinates for each models
+	mobsnvf_manual_eval <- evaluate.roc.prc(mobsnvf_scores_truth, score_col = "FOBP", truth_col = "truth", model_name = "mobsnvf")
+	vafsnvf_manual_eval <- evaluate.roc.prc(vafsnvf_scores_truth, score_col = "VAFF", truth_col = "truth", model_name = "vafsnvf")
+	sobdetector_manual_eval <- evaluate.roc.prc(sobdetector_scores_truth, score_col = "SOB", truth_col = "truth", model_name = "sobdetector")
+	gatk_obmm_manual_eval <- evaluate.roc.prc(gatk_obmm_scores_truth, score_col = "obmm", truth_col = "truth", model_name = "gatk-obmm")
+
+
+	# Combine the per model data into one dataframe
+
+	## Multimodel ROC Dataframe
+	custom_multimodel_roc <- rbind(
+		mobsnvf_manual_eval$roc,
+		vafsnvf_manual_eval$roc,
+		sobdetector_manual_eval$roc,
+		gatk_obmm_manual_eval$roc
+	)
+
+	## Multimodel PRC Dataframe
+	custom_multimodel_prc <- rbind(
+		mobsnvf_manual_eval$prc,
+		vafsnvf_manual_eval$prc,
+		sobdetector_manual_eval$prc,
+		gatk_obmm_manual_eval$prc
+	)
+
+	## Create a table containig the AUCs for each models
+	aucs <- get.multimodel.auroc.auprc(custom_multimodel_roc, custom_multimodel_prc, sample_name)
 
 	## Create output directory for roc prc and auc evaluation
-	out_dir <- glue("{main.outdir}/roc-prc-auc/precrec/{sample_name}")
+	out_dir <- glue("{main.outdir}/roc-prc-auc/custom/{sample_name}")
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-	qwrite(precrec_eval_metrics$auc_table, glue("{out_dir}/{sample_name}_auc_table.tsv"))
-	qwrite(precrec_eval_metrics$precrec_eval_object, glue("{out_dir}/{sample_name}_precrec_eval.rds"))
-	qwrite(precrec_eval_metrics$roc, glue("{out_dir}/{sample_name}_roc_coordinates.tsv"))
-	qwrite(precrec_eval_metrics$prc, glue("{out_dir}/{sample_name}_prc_coordinates.tsv"))
+	qwrite(aucs, glue("{out_dir}/{sample_name}_auc_table.tsv"))
+	qwrite(custom_multimodel_roc, glue("{out_dir}/{sample_name}_roc_coordinates.tsv"))
+	qwrite(custom_multimodel_prc, glue("{out_dir}/{sample_name}_prc_coordinates.tsv"))
 
 }
 
