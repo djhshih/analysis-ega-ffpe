@@ -12,10 +12,29 @@ library(tidyverse)
 library(glue)
 
 
-### Evaluations
-
 #### A list of Chromosomes 1-22, X and Y
 standard_chromosomes <- paste0("chr", c(1:22, "X", "Y"))
+
+read_vcf <- function(path, columns = NULL) {
+	all_lines <- readLines(path)
+	filtered_lines <- grep("^##", all_lines, value = TRUE, invert = TRUE)
+
+	vcf <- read.delim(
+		text = filtered_lines,
+		sep = "\t",
+		check.names = FALSE
+	)
+
+	names(vcf)[1] <- sub("^#", "", names(vcf)[1])
+	names(vcf) <- tolower(names(vcf))
+
+	if (!is.null(columns)) {
+		vcf <- vcf[, columns]
+	}
+
+	return(vcf)
+}
+
 
 #### Create unique identifier for each variant
 add_id <- function(damaged_sample_variants) {
@@ -23,16 +42,19 @@ add_id <- function(damaged_sample_variants) {
 	damaged_sample_variants
 }
 
+
 #### Annotate the presence of a variant in the truth set i.e in the Fresh Frozen Sample
 annotate_truth <- function(damaged_sample_variants, ground_truth_variants) {
 	damaged_sample_variants$truth <- damaged_sample_variants$snv %in% ground_truth_variants$snv;
 	damaged_sample_variants
 }
 
+
 #### Function to filter C>T and G>A mutations
 ct_only <- function(df) {
   df[(df$ref == "C" & df$alt == "T") | (df$ref == "G" & df$alt == "A"), ]
 }
+
 
 #### Create a set of SNVs across multiple samples
 snv_union <- function(matched_undamaged_sample_paths) {
@@ -48,6 +70,7 @@ snv_union <- function(matched_undamaged_sample_paths) {
 
 	return(truths)
 }
+
 
 #### Function to classify variants based on a set of Q values and a False Positive cutoff threshold
 ##### Returns a boolean vector
@@ -67,6 +90,7 @@ adaptive_fdr_cut <- function(q, fp.cut) {
 		rep(FALSE, n)
 	}
 }
+
 
 #### Function to label the models prediction based on the adaptive_fdr_cut function
 fdr_cut_pred <- function(df, score, fp.cut=0.5) {
@@ -89,6 +113,7 @@ fdr_cut_pred <- function(df, score, fp.cut=0.5) {
 		arrange(chrom, pos)
 }
 
+
 #### Calculate True/False Positives/Negatives from prediction and ground truth
 calc.confusion.matrix <- function(df, pred_col = "pred", truth_col = "truth") {
 	TP <- df |> filter((.data[[pred_col]]) & (.data[[truth_col]])) |> count() |> pull()
@@ -103,6 +128,7 @@ calc.confusion.matrix <- function(df, pred_col = "pred", truth_col = "truth") {
 		TN = TN
 	)
 }
+
 
 #### Calculate evaluation metrics based on confusion matrix
 calc.eval.metrics <- function(df, pred_col = "pred", truth_col = "truth") {
@@ -174,6 +200,7 @@ evaluate.roc.prc <- function(model_scores_truth, score_col = "score", truth_col 
 	)
 }
 
+
 #### Function to calculate AUC using the trapezoidal rule
 calculate.auc <- function(df, x_col, y_col) {
   	##### Using dplyr's lead() function to get the next value in the sequence
@@ -191,6 +218,7 @@ calculate.auc <- function(df, x_col, y_col) {
 		summarise(auc = sum(area, na.rm = TRUE)) |>
 		pull(auc)
 }
+
 
 ## Function to create multimodel AUROC and AUPRC table based on a dataframe containing ROC and PRC
 ## Column names for ROC df must be fpr and tpr
