@@ -162,3 +162,73 @@ for (index in seq_along(ffpe_tumoral)){
 }
 
 
+## Perform overall evaluation
+
+### Read in paths for the evaluation data for each sample samples
+scores_labels_truths_datasets_paths <- Sys.glob("../../results/somatic_vcf/model_scores_labels_truths/*/*.tsv")
+### Concatenate score_labels_truth dataset for all samples into one
+all_scores_labels_truths <- data.frame()
+
+for (path in scores_labels_truths_datasets_paths){
+
+	## Retrieve sample name from the path
+	sample_name <- str_split_1(path, "/")[7]
+
+	## Read in the table
+	scores_labels_truths <- qread(path)
+
+	## Annotate the sample name
+	scores_labels_truths$sample_name <- sample_name
+
+	## append the data for this sample to the bigger dataframe
+	all_scores_labels_truths <- rbind(all_scores_labels_truths, scores_labels_truths)
+
+}
+
+
+## Stratify based on tissue types
+liver_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_scores_labels_truths$sample_name, "Liver"), ]
+colon_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_scores_labels_truths$sample_name, "Colon"), ]
+
+## Create overall eval for:
+
+### All Samples
+precrec_all_samples_eval <- get.precrec.eval.metrics(all_scores_labels_truths, "EGAD00001004066 All FFPE tomoral Samples", score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
+### Liver Samples
+precrec_liver_samples_eval <- get.precrec.eval.metrics(liver_samples_scores_labels_truths, "EGAD00001004066 all FFPE tomoral liver Samples", score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
+### Colon Samples
+precrec_colon_samples_eval <- get.precrec.eval.metrics(colon_samples_scores_labels_truths, "EGAD00001004066 all FFPE tomoral colon Samples", score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
+
+
+## Write aggregated eval input data to file
+
+out_dir <- glue("{main.outdir}/model_scores_labels_truths")
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+qwrite(all_scores_labels_truths, glue("{out_dir}/all_samples_all_scores_labels_truths.tsv"))
+qwrite(liver_samples_scores_labels_truths, glue("{out_dir}/liver_samples_all_scores_labels_truths.tsv"))
+qwrite(colon_samples_scores_labels_truths, glue("{out_dir}/colon_samples_all_scores_labels_truths.tsv"))
+
+
+## Write aggregated eval data to file
+out_dir <- glue("{main.outdir}/roc-prc-auc/precrec")
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+### Write all samples evaluation
+qwrite(precrec_all_samples_eval$auc_table, glue("{out_dir}/all_samples_auc_table.tsv"))
+qwrite(precrec_all_samples_eval$precrec_eval_object, glue("{out_dir}/all_samples_precrec_eval.rds"))
+qwrite(precrec_all_samples_eval$roc, glue("{out_dir}/all_samples_roc_coordinates.tsv"))
+qwrite(precrec_all_samples_eval$prc, glue("{out_dir}/all_samples_prc_coordinates.tsv"))
+
+### Write liver samples evaluation
+qwrite(precrec_liver_samples_eval$auc_table, glue("{out_dir}/liver_samples_auc_table.tsv"))
+qwrite(precrec_liver_samples_eval$precrec_eval_object, glue("{out_dir}/liver_samples_precrec_eval.rds"))
+qwrite(precrec_liver_samples_eval$roc, glue("{out_dir}/liver_samples_roc_coordinates.tsv"))
+qwrite(precrec_liver_samples_eval$prc, glue("{out_dir}/liver_samples_prc_coordinates.tsv"))
+
+### Write colon samples evaluation 
+qwrite(precrec_colon_samples_eval$auc_table, glue("{out_dir}/colon_samples_auc_table.tsv"))
+qwrite(precrec_colon_samples_eval$precrec_eval_object, glue("{out_dir}/colon_samples_precrec_eval.rds"))
+qwrite(precrec_colon_samples_eval$roc, glue("{out_dir}/colon_samples_roc_coordinates.tsv"))
+qwrite(precrec_colon_samples_eval$prc, glue("{out_dir}/colon_samples_prc_coordinates.tsv"))
+
