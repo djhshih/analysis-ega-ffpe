@@ -44,6 +44,10 @@ for (path in precrec_eval_paths) {
 
 precrec_all_samples_eval <- readRDS("../../results/somatic_vcf/roc-prc-auc/precrec/all_samples_precrec_eval.rds")
 
+## Read in the variant set to count number and annotate the number of SNVs in the plot
+eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/all_samples_all_scores_labels_truths.tsv"))
+snv_count <- nrow(eval_snv_set)
+
 precrec_all_samples_roc_plot <- autoplot(precrec_all_samples_eval, "roc")
 precrec_all_samples_prc_plot <- autoplot(precrec_all_samples_eval, "prc")
 all_samples_plot_auc_text <- make.plot.auc.text(precrec_all_samples_eval, model.names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))$text.plot.object
@@ -54,7 +58,7 @@ precrec_roc_prc_plot <- make.roc.prc.plot(
 	all_samples_plot_auc_text, 
 	title = "FFPE SNVF Evaluation",
 	subtitle = glue("EGAD00001004066 Dataset\nAll 13 Sample (Liver + Colon)"),
-	caption = glue("Only C>T SNVs Evaluated\nC>T SNV count: {NULL}")
+	caption = glue("Only C>T SNVs Evaluated\nC>T SNV count: {snv_count}")
 )
 
 outdir = glue("{outdir_root}/roc_prc_plots")
@@ -66,6 +70,10 @@ qdraw(precrec_roc_prc_plot, glue("{outdir}/all_samples_roc_prc_plot.pdf"), width
 
 precrec_all_samples_eval <- readRDS("../../results/somatic_vcf/roc-prc-auc/precrec/colon_samples_precrec_eval.rds")
 
+## Read in the variant set to count number and annotate the number of SNVs in the plot
+eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/colon_samples_all_scores_labels_truths.tsv"))
+snv_count <- nrow(eval_snv_set)
+
 precrec_all_samples_roc_plot <- autoplot(precrec_all_samples_eval, "roc")
 precrec_all_samples_prc_plot <- autoplot(precrec_all_samples_eval, "prc")
 all_samples_plot_auc_text <- make.plot.auc.text(precrec_all_samples_eval, model.names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))$text.plot.object
@@ -76,7 +84,7 @@ precrec_roc_prc_plot <- make.roc.prc.plot(
 	all_samples_plot_auc_text, 
 	title = "FFPE SNVF Evaluation",
 	subtitle = glue("EGAD00001004066 Dataset\n6 Colon Samples"),
-	caption = glue("Only C>T SNVs Evaluated\nC>T SNV count: {NULL}")
+	caption = glue("Only C>T SNVs Evaluated\nC>T SNV count: {snv_count}")
 )
 
 outdir = glue("{outdir_root}/roc_prc_plots")
@@ -88,6 +96,10 @@ qdraw(precrec_roc_prc_plot, glue("{outdir}/colon_samples_roc_prc_plot.pdf"), wid
 
 precrec_all_samples_eval <- readRDS("../../results/somatic_vcf/roc-prc-auc/precrec/liver_samples_precrec_eval.rds")
 
+## Read in the variant set to count number and annotate the number of SNVs in the plot
+eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/liver_samples_all_scores_labels_truths.tsv"))
+snv_count <- nrow(eval_snv_set)
+
 precrec_all_samples_roc_plot <- autoplot(precrec_all_samples_eval, "roc")
 precrec_all_samples_prc_plot <- autoplot(precrec_all_samples_eval, "prc")
 all_samples_plot_auc_text <- make.plot.auc.text(precrec_all_samples_eval, model.names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))$text.plot.object
@@ -98,11 +110,100 @@ precrec_roc_prc_plot <- make.roc.prc.plot(
 	all_samples_plot_auc_text, 
 	title = "FFPE SNVF Evaluation",
 	subtitle = glue("EGAD00001004066 Dataset\n7 Liver Samples"),
-	caption = glue("Only C>T SNVs Evaluated\nC>T SNV count: {NULL}")
+	caption = glue("Only C>T SNVs Evaluated\nC>T SNV count: {snv_count}")
 )
 
 outdir = glue("{outdir_root}/roc_prc_plots")
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 qdraw(precrec_roc_prc_plot, glue("{outdir}/liver_samples_roc_prc_plot.pdf"), width = 7, height = 5)
+
+
+#---------------
+
+# Make box plots
+
+## Collect the AUCs across all the samples
+
+### Create a vector with paths to all the AUC tables
+auc_table_paths <- Sys.glob("../../results/somatic_vcf/roc-prc-auc/precrec/*/*_auc_table.tsv")
+
+### Collect AUCs 
+all_auc <- data.frame()
+
+for (path in auc_table_paths){
+	auc <- read.delim(path)
+	all_auc <- rbind(all_auc, auc)
+}
+
+## Stratify by tissue type
+colon_samples_auc <- all_auc[str_detect(all_auc$sample_id, "Colon"),]
+liver_samples_auc <- all_auc[str_detect(all_auc$sample_id, "Liver"),]
+
+## Create Box Plots for all samples
+### AUROC
+all_samples_auroc_boxplot <- make_auc_boxplot(
+	all_auc, 
+	"auroc", 
+	title = "Area Under ROC Curve", 
+	subtitle = "EGAD00001004066 Dataset\nAll 13 FFPE Tumoral Samples (Liver + Colon)\nMutect2 matched normal mode"
+)
+
+### AUPRC
+all_samples_auprc_boxplot <- make_auc_boxplot(
+	all_auc, 
+	"auprc", 
+	title = "Area Under Precision-Recall Curve", 
+	subtitle = "EGAD00001004066 Dataset\nAll 13 FFPE Tumoral Samples (Liver + Colon)\nMutect2 matched normal mode"
+)
+
+## Create Box Plots for liver samples
+### AUROC
+colon_samples_auroc_boxplot <- make_auc_boxplot(
+	colon_samples_auc, 
+	"auroc", 
+	title = "Area Under ROC Curve", 
+	subtitle = "EGAD00001004066 Dataset\n6 FFPE Tumoral Colon Samples\nMutect2 matched normal mode"
+)
+
+### AUPRC
+colon_samples_auprc_boxplot <- make_auc_boxplot(
+	colon_samples_auc, 
+	"auprc", 
+	title = "Area Under Precision-Recall Curve", 
+	subtitle = "EGAD00001004066 Dataset\n6 FFPE Tumoral Colon Samples\nMutect2 matched normal mode"
+)
+
+## Create Box Plots for liver samples
+### AUROC
+liver_samples_auroc_boxplot <- make_auc_boxplot(
+	liver_samples_auc, 
+	"auroc", 
+	title = "Area Under ROC Curve", 
+	subtitle = "EGAD00001004066 Dataset\n7 FFPE Tumoral Liver Samples\nMutect2 matched normal mode"
+)
+
+### AUPRC
+liver_samples_auprc_boxplot <- make_auc_boxplot(
+	liver_samples_auc, 
+	"auprc", 
+	title = "Area Under Precision-Recall Curve", 
+	subtitle = "EGAD00001004066 Dataset\n7 FFPE Tumoral Liver Samples\nMutect2 matched normal mode"
+)
+
+
+
+## Assign output directory
+out_dir = glue("{outdir_root}/box_plots")
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+## Save Box Plots to file
+qdraw(all_samples_auroc_boxplot, glue("{out_dir}/all_samples_auroc_box_plot.pdf"), width = 5, height = 5)
+qdraw(colon_samples_auroc_boxplot, glue("{out_dir}/liver_samples_auroc_box_plot.pdf"), width = 5, height = 5)
+qdraw(liver_samples_auroc_boxplot, glue("{out_dir}/colon_samples_auroc_box_plot.pdf"), width = 5, height = 5)
+
+qdraw(all_samples_auprc_boxplot, glue("{out_dir}/all_samples_auprc_box_plot.pdf"), width = 5, height = 5)
+qdraw(colon_samples_auprc_boxplot, glue("{out_dir}/liver_samples_auprc_box_plot.pdf"), width = 5, height = 5)
+qdraw(liver_samples_auprc_boxplot, glue("{out_dir}/colon_samples_auprc_box_plot.pdf"), width = 5, height = 5)
+
 
