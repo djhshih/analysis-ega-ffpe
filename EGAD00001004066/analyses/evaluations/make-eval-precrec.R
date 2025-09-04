@@ -126,7 +126,7 @@ prepare.eval.data <- function(ffpe_tumoral, sample_index) {
 print(glue("Evaluating: "))
 
 ## Perform per sample evaluation
-for (index in seq_along(ffpe_tumoral)){
+for (index in seq_len(dim(ffpe_tumoral)[1])){
 
 	## Prepare the data for evaluation
 	eval_data <- prepare.eval.data(ffpe_tumoral, index)
@@ -191,7 +191,7 @@ liver_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_sc
 colon_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_scores_labels_truths$sample_name, "Colon"), ]
 
 ## Create overall eval for:
-
+print(glue("\n\tMaking aggregated evaluations"))
 ### All Samples
 precrec_all_samples_eval <- get.precrec.eval.metrics(all_scores_labels_truths, "EGAD00001004066 All FFPE tomoral Samples", score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
 ### Liver Samples
@@ -205,9 +205,9 @@ precrec_colon_samples_eval <- get.precrec.eval.metrics(colon_samples_scores_labe
 out_dir <- glue("{main.outdir}/model_scores_labels_truths")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
-qwrite(all_scores_labels_truths, glue("{out_dir}/all_samples_all_scores_labels_truths.tsv"))
-qwrite(liver_samples_scores_labels_truths, glue("{out_dir}/liver_samples_all_scores_labels_truths.tsv"))
-qwrite(colon_samples_scores_labels_truths, glue("{out_dir}/colon_samples_all_scores_labels_truths.tsv"))
+qwrite(all_scores_labels_truths, glue("{out_dir}/all_samples_scores_labels_truths.tsv"))
+qwrite(liver_samples_scores_labels_truths, glue("{out_dir}/liver_samples_scores_labels_truths.tsv"))
+qwrite(colon_samples_scores_labels_truths, glue("{out_dir}/colon_samples_scores_labels_truths.tsv"))
 
 
 ## Write aggregated eval data to file
@@ -232,3 +232,4 @@ qwrite(precrec_colon_samples_eval$precrec_eval_object, glue("{out_dir}/colon_sam
 qwrite(precrec_colon_samples_eval$roc, glue("{out_dir}/colon_samples_roc_coordinates.tsv"))
 qwrite(precrec_colon_samples_eval$prc, glue("{out_dir}/colon_samples_prc_coordinates.tsv"))
 
+print("Done")

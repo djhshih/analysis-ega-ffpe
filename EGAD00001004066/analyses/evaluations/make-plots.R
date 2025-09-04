@@ -9,9 +9,12 @@ outdir_root = "../../results/somatic_vcf/plots"
 precrec_eval_paths <- Sys.glob("../../results/somatic_vcf/roc-prc-auc/precrec/*/*.rds")
 
 ## Create plots for each of the evaluated samples
+print(glue("Creating ROC PRC plot for:"))
+
 for (path in precrec_eval_paths) {
 
 	sample_name <- str_split_1(path, "/")[7]
+	print(glue("\t {sample_name}"))
 
 	precrec_eval <- readRDS(path)
 
@@ -41,11 +44,11 @@ for (path in precrec_eval_paths) {
 }
 
 ## Make an overall evaluation plot for all samples
-
+print(glue("\nCreating aggregated ROC PRC plot"))
 precrec_all_samples_eval <- readRDS("../../results/somatic_vcf/roc-prc-auc/precrec/all_samples_precrec_eval.rds")
 
 ## Read in the variant set to count number and annotate the number of SNVs in the plot
-eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/all_samples_all_scores_labels_truths.tsv"))
+eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/all_samples_scores_labels_truths.tsv"))
 snv_count <- nrow(eval_snv_set)
 
 precrec_all_samples_roc_plot <- autoplot(precrec_all_samples_eval, "roc")
@@ -71,7 +74,7 @@ qdraw(precrec_roc_prc_plot, glue("{outdir}/all_samples_roc_prc_plot.pdf"), width
 precrec_all_samples_eval <- readRDS("../../results/somatic_vcf/roc-prc-auc/precrec/colon_samples_precrec_eval.rds")
 
 ## Read in the variant set to count number and annotate the number of SNVs in the plot
-eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/colon_samples_all_scores_labels_truths.tsv"))
+eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/colon_samples_scores_labels_truths.tsv"))
 snv_count <- nrow(eval_snv_set)
 
 precrec_all_samples_roc_plot <- autoplot(precrec_all_samples_eval, "roc")
@@ -97,7 +100,7 @@ qdraw(precrec_roc_prc_plot, glue("{outdir}/colon_samples_roc_prc_plot.pdf"), wid
 precrec_all_samples_eval <- readRDS("../../results/somatic_vcf/roc-prc-auc/precrec/liver_samples_precrec_eval.rds")
 
 ## Read in the variant set to count number and annotate the number of SNVs in the plot
-eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/liver_samples_all_scores_labels_truths.tsv"))
+eval_snv_set <- qread(glue("../../results/somatic_vcf/model_scores_labels_truths/liver_samples_scores_labels_truths.tsv"))
 snv_count <- nrow(eval_snv_set)
 
 precrec_all_samples_roc_plot <- autoplot(precrec_all_samples_eval, "roc")
@@ -141,6 +144,7 @@ colon_samples_auc <- all_auc[str_detect(all_auc$sample_id, "Colon"),]
 liver_samples_auc <- all_auc[str_detect(all_auc$sample_id, "Liver"),]
 
 ## Create Box Plots for all samples
+print(glue("Creating AUROC and AUPRC Box Plots"))
 ### AUROC
 all_samples_auroc_boxplot <- make_auc_boxplot(
 	all_auc, 
@@ -207,3 +211,4 @@ qdraw(colon_samples_auprc_boxplot, glue("{out_dir}/liver_samples_auprc_box_plot.
 qdraw(liver_samples_auprc_boxplot, glue("{out_dir}/colon_samples_auprc_box_plot.pdf"), width = 5, height = 5)
 
 
+print("Done")
