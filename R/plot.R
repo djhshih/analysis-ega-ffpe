@@ -77,7 +77,7 @@ make.plot.auc.text <- function(multi.model.eval.object, model.names = c("mobsnvf
 
 	##### Make AUCROC and AUPRC texts to include in the plots
 	auc_text <- glue(
-		"\nAUROC: \n{paste(auroc_lines, collapse = '\n')} \n\nAUPRC: \n{paste(auprc_lines, collapse = '\n')}"
+		"\n\n\nAUROC: \n{paste(auroc_lines, collapse = '\n')} \n\nAUPRC: \n{paste(auprc_lines, collapse = '\n')}"
 	)
 
 	##### Make plot text
@@ -94,7 +94,7 @@ make.plot.auc.text <- function(multi.model.eval.object, model.names = c("mobsnvf
 }
 
 #### Function to mark the cutoff point on the ROC and PRC plots based on different values and save them into separate plots
-mark_mobsnvf_cutoff <- function(scores_truth_df, out_dir, cut_thresholds = NULL){
+mark_mobsnvf_cutoff <- function(scores_truth_df, out_dir, cut_thresholds = NULL, title = NULL){
 
 	if (is.null(cut_thresholds)){
 		n <- c(1, 2, 3, 4, 5, 6, 7, 8, 10, 12)
@@ -145,43 +145,46 @@ make_auc_boxplot <- function(
     model_col = "model",
     scale = 1,
     text_scale = 1,
-    width = 14,
-    height = 12,
+    width = 6,
+    height = 6,
+	title = NULL,
 	subtitle = NULL,
     grids = FALSE
 ){
     # options(repr.plot.width = width * scale, repr.plot.height = height * scale)
 
-    title_insert <- c(
-        "auroc" = "Area under Receiver Operating Characteristic Curve",
-        "auprc" = "Area under Precision-Recall Curve"
-    )
+	if(is.null(title)){
+		title <- c(
+			"auroc" = "Area under Receiver Operating Characteristic Curve",
+			"auprc" = "Area under Precision-Recall Curve"
+		)
+	}
 
     auc_model_boxplot <- ggplot(df, aes(x = .data[[model_col]], y = .data[[auc_type_col]], fill = .data[[model_col]])) +
         geom_boxplot(width = 0.5, alpha = 0.9) +
-        geom_jitter(color = "black", size = 0.4, alpha = 0.7) +
+        geom_jitter(color = "black", size = 0.5*scale, alpha = 0.7) +
         scale_fill_viridis(discrete = TRUE) +
         theme_ipsum(base_family = "sans") +
         theme(
             legend.position = "none",
-            plot.title = element_text(size = 24 * text_scale, margin = margin(b = 10), hjust = 0.5), # Control title size, padding and position
-            plot.subtitle = element_text(size = 18 * text_scale, margin = margin(b = 15), hjust = 0.5), # subtitle size, padding 
-            axis.title.x = element_text(size = 20 * text_scale, margin = margin(t = 10), hjust = 0.5), # x label, padding 
-            axis.title.y = element_text(size = 20 * text_scale, margin = margin(r = 10), hjust = 0.5), # y label, padding 
-            axis.text.x = element_text(size = 14 * text_scale, color = "grey30"), # x tick labels
-            axis.text.y = element_text(size = 14 * text_scale, color = "grey40"), # y tick labels
+            plot.title = element_text(size = 12 * text_scale, margin = margin(b = 10), hjust = 0.5), # Control title size, padding and position
+            plot.subtitle = element_text(size = 10 * text_scale, margin = margin(b = 15), hjust = 0.5), # subtitle size, padding 
+            axis.title.x = element_text(size = 10 * text_scale, margin = margin(t = 10), hjust = 0.5), # x label, padding 
+            axis.title.y = element_text(size = 10 * text_scale, margin = margin(r = 10), hjust = 0.5), # y label, padding 
+            axis.text.x = element_text(size = 7 * text_scale, color = "grey30"), # x tick labels
+            axis.text.y = element_text(size = 7 * text_scale, color = "grey40"), # y tick labels
             # legend.text = element_text(size = 16 * text_scale), # legend text size
             # legend.title = element_text(size = 18 * text_scale, face = "bold"), # legend title size and properties
             # legend.key.size = unit(1.5, "cm"), # legend keys sizes
             # legend.key.width = unit(1.5, "cm"), # legend keys sizes
-            strip.text = element_text(size = 18 * text_scale, hjust = 0.5),
+            strip.text = element_text(size = 9 * text_scale, hjust = 0.5),
             panel.grid.minor = element_line(color = "grey95", linewidth = 0.5), # minor grids properties
             panel.grid.major = element_line(color = "grey95", linewidth = 0.5), # major grids properties
         ) +
         labs(
             x = "Model", 
             y = toupper(auc_type_col),
-            title = unname(title_insert[tolower(auc_type_col)]),
+            title = title,
             subtitle= paste0(if (is.null(subtitle)) "" else subtitle)
         )
 
