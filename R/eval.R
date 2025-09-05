@@ -36,19 +36,22 @@ read_vcf <- function(path, columns = NULL) {
 }
 
 
-#### Create unique identifier for each variant
-add_id <- function(damaged_sample_variants) {
-	damaged_sample_variants$snv <- paste(damaged_sample_variants$chrom, damaged_sample_variants$pos, damaged_sample_variants$ref, damaged_sample_variants$alt, sep="_")
-	damaged_sample_variants
+# Create variant ID based on chrom, pos, ref, and alt
+# @param d  data.frame of variants
+add_id <- function(d) {
+	d$snv <- with(d, paste(chrom, pos, ref, alt, sep="_"))
+	d
 }
 
 
-#### Annotate the presence of a variant in the truth set i.e in the Fresh Frozen Sample
-annotate_truth <- function(damaged_sample_variants, ground_truth_variants) {
-	damaged_sample_variants$truth <- damaged_sample_variants$snv %in% ground_truth_variants$snv;
-	damaged_sample_variants
+# Annotate called variant with whether each variant is in the ground truth
+# variant call set
+# @param  d  data.frame of called variants to be annotated
+# @param  truth  data.frame of ground truth variants
+annotate_truth <- function(d, truth) {
+	d$truth <- d$snv %in% truth$snv;
+	d
 }
-
 
 #### Function to filter C>T and G>A mutations
 ct_only <- function(df) {

@@ -32,10 +32,10 @@ ffpe_tumoral <- lookup_table[(lookup_table$preservation == "FFPE" & lookup_table
 frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_table$sample_type == "Tumoral"), ]
 
 
-print(glue("Evaluating: "))
+message("Evaluating: ")
 
 ## Perform per sample evaluation
-for (index in seq_len(dim(ffpe_tumoral)[1])){
+for (index in seq_len(nrow(ffpe_tumoral))){
 
 	### Prepare data for evaluation
 
@@ -59,13 +59,12 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 	## 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
 	## 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
 	sobdetector_output <- read.delim(file.path(ffpe_snvf.dir, "sobdetector", sample_name, sprintf("%s.sobdetector.snv", sample_name)))
-	## Some Variants are not evaluated by SOBdetector.
-	## These are denoted with a "." under the SOB (score) column. These variants are removed.
+	# variants ignored by SOBdetector have score of "."
 	sobdetector_output <- sobdetector_output[!(sobdetector_output$SOB == "."), ]
-	### SOB Column is changed back to numeric as it was read in as character due to presence of "."
+	# now, it's safe to convert to numeric
 	sobdetector_output$SOB <- as.numeric(sobdetector_output$SOB)
-	### Change values where SOB score is nan to 0 as artiStatus column for these values are annotated as SNV i.e real mutation
-	### By default, higher SOB score indicates likelihood of artifact. This is why real mutations are set to 0
+	# SOBdetector score = 0 indicates that it is not artifact
+	# variants classified by SOBdetect as "snv" have score of NaN
 	sobdetector_output$SOB <- ifelse(is.nan(sobdetector_output$SOB), 0, sobdetector_output$SOB)
 
 
@@ -105,7 +104,7 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 
 
 	# Add truth labels variants in the all_model_scores dataframe based on whether the variant is present in the ground truth
-	all_model_scores_truths <- annotate_truth(damaged_sample_variants = all_model_scores, ground_truth_variants = truths)
+	all_model_scores_truths <- annotate_truth(all_model_scores, truths)
 
 
 	# Adjust scores
