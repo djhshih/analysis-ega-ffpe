@@ -8,13 +8,17 @@ library(io)
 library(precrec)
 library(jsonlite)
 library(argparser)
-library(tidyverse)
-library(glue)
 
 
 #### A list of Chromosomes 1-22, X and Y
 standard_chromosomes <- paste0("chr", c(1:22, "X", "Y"))
 
+## Read a VCF File
+## Arguments:
+## 		path: VCF path
+##		columns (optional): column names to keep in lowercase
+## Returns:
+## 		dataframe containing vcf columns
 read_vcf <- function(path, columns = NULL) {
 	all_lines <- readLines(path)
 	filtered_lines <- grep("^##", all_lines, value = TRUE, invert = TRUE)
@@ -66,7 +70,7 @@ snv_union <- function(matched_undamaged_sample_paths) {
 
 	for (truth_sample_path in matched_undamaged_sample_paths){
 		# Read the VCF data
-		truth_sample_full <- qread(glue(truth_sample_path), type = "vcf")
+		truth_sample_full <- qread(truth_sample_path, type = "vcf")
 		# Select only the required columns using base R
 		truth_sample <- truth_sample_full[, c("chrom", "pos", "ref", "alt")]
 		truths <- rbind(truths, truth_sample)
@@ -102,24 +106,24 @@ adaptive_fdr_cut <- function(q, fp.cut) {
 #### Function to label the models prediction based on the adaptive_fdr_cut function
 fdr_cut_pred <- function(df, score, fp.cut=0.5) {
 	
-    ##### Split C>T and non C>T mutations into two dataframes using base R
-    df.ct <- df[complete.cases(df[[score]]), ]
-    df.nct <- df[!complete.cases(df[[score]]), ]
+	##### Split C>T and non C>T mutations into two dataframes using base R
+	df.ct <- df[complete.cases(df[[score]]), ]
+	df.nct <- df[!complete.cases(df[[score]]), ]
 
-    ##### For non C>T, mutate columns using direct assignment
-    df.nct$score <- NA
-    df.nct$q <- NA
-    df.nct$pred <- TRUE
+	##### For non C>T, mutate columns using direct assignment
+	df.nct$score <- NA
+	df.nct$q <- NA
+	df.nct$pred <- TRUE
 
-    ##### Predict artifacts based on q-values and adaptive_fdr_cut function
-    # The original dataframe is modified by direct assignment
-    df.ct$score <- ifelse(df.ct[[score]] == 0, .Machine$double.eps, df.ct[[score]])
-    df.ct$q <- p.adjust(df.ct$score, "BH")
+	##### Predict artifacts based on q-values and adaptive_fdr_cut function
+	# The original dataframe is modified by direct assignment
+	df.ct$score <- ifelse(df.ct[[score]] == 0, .Machine$double.eps, df.ct[[score]])
+	df.ct$q <- p.adjust(df.ct$score, "BH")
 	## TRUE being real muatation and FALSE being artifacts
-    df.ct$pred <- ifelse(adaptive_fdr_cut(df.ct$q, fp.cut), TRUE, FALSE)
+	df.ct$pred <- ifelse(adaptive_fdr_cut(df.ct$q, fp.cut), TRUE, FALSE)
 
-    ##### Combine the C>T and non C>T dataframes back into one single dataframe
-    df <- rbind(df.ct, df.nct)
+	##### Combine the C>T and non C>T dataframes back into one single dataframe
+	df <- rbind(df.ct, df.nct)
 	# Arrange the combined dataframe using base R's `order`
 	df <- df[order(df$chrom, df$pos), ]
 	df
@@ -161,7 +165,6 @@ calc.eval.metrics <- function(df, pred_col = "pred", truth_col = "truth") {
 }
 
 
-
 ## Function to create multimodel AUROC and AUPRC table based on a dataframe containing ROC and PRC
 ## Column names for ROC df must be fpr and tpr
 ## Column names for ROC df must be precision and recall
@@ -176,7 +179,7 @@ get.multimodel.auroc.auprc <- function(multimodel_roc_df,  multimodel_prc_df, sa
 	for (i in seq_along(model_names)) {
 		model_name <- model_names[i]
 
-        # Filter using base R subsetting instead of dplyr::filter
+		# Filter using base R subsetting instead of dplyr::filter
 		model_roc <- multimodel_roc_df[multimodel_roc_df[[model_col]] == model_name, ]
 		model_prc <- multimodel_prc_df[multimodel_prc_df[[model_col]] == model_name, ]
 
@@ -192,7 +195,7 @@ get.multimodel.auroc.auprc <- function(multimodel_roc_df,  multimodel_prc_df, sa
 
 	}
 
-    # Combine list of data frames using base R
+	# Combine list of data frames using base R
 	aucs <- do.call(rbind, auc_list)
 
 	return(aucs)

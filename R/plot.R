@@ -77,7 +77,7 @@ make.plot.auc.text <- function(multi.model.eval.object, model.names = c("mobsnvf
 
 	##### Make AUCROC and AUPRC texts to include in the plots
 	auc_text <- glue(
-		"\n\n\nAUROC: \n{paste(auroc_lines, collapse = '\n')} \n\nAUPRC: \n{paste(auprc_lines, collapse = '\n')}"
+		"\nAUROC: \n{paste(auroc_lines, collapse = '\n')} \n\nAUPRC: \n{paste(auprc_lines, collapse = '\n')}"
 	)
 
 	##### Make plot text

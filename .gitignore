@@ -1,0 +1,8 @@
+**/gatk*
+**/.fasta*
+**/cromwell*
+**/per_sample_scripts
+**/intermediates
+**/*old
+**/*bad_naming
+**/log

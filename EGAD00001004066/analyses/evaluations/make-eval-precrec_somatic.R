@@ -47,6 +47,7 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 	print(sprintf("%d. %s", index, sample_name))
 
 	# Read in the FFPE-Filtered output for current sample
+	# Precrec expects 
 
 	mobsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "mobsnvf", sample_name, sprintf("%s.mobsnvf.snv", sample_name)))
 	### Retain only C>T mutations in mobsnvf output
@@ -173,7 +174,7 @@ liver_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_sc
 colon_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_scores_labels_truths$sample_name, "Colon"), ]
 
 ## Create overall eval for:
-print("Making aggregated evaluations")
+message("Making aggregated evaluations")
 ### All Samples
 precrec_all_samples_eval <- get.precrec.eval.metrics(all_scores_labels_truths, "EGAD00001004066 All FFPE tomoral Samples", score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
 ### Liver Samples
@@ -214,7 +215,7 @@ qwrite(precrec_colon_samples_eval$precrec_eval_object, file.path(out_dir, "colon
 qwrite(precrec_colon_samples_eval$roc, file.path(out_dir, "colon_samples_roc_coordinates.tsv"))
 qwrite(precrec_colon_samples_eval$prc, file.path(out_dir, "colon_samples_prc_coordinates.tsv"))
 
-print("Done")
+message("Done")
 
 
 
