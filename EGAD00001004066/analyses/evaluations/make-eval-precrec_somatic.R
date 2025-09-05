@@ -5,8 +5,7 @@ library(io)
 library(precrec)
 library(jsonlite)
 library(argparser)
-library(tidyverse)
-library(glue)
+library(stringr)
 
 ## Importing module containing common functions for evaluations
 source("../../../R/eval.R")
@@ -22,68 +21,75 @@ main.outdir <- "../../results/somatic_vcf"
 
 ### Read Annotation Table
 
-## Read the annotation table
 lookup_table <- read.delim("../../annot/sample_annotations.tsv")
 ## create a sample name column
-lookup_table <- mutate(lookup_table, sample_name = glue('{gsub(" ", "-", title)}_{sample_alias}'))
+lookup_table$sample_name <- paste0(gsub(" ", "-", lookup_table$title), "_", lookup_table$sample_alias)
+
+
 
 ## Stratify annotation table based on FFPE and FF Somatic Variants
-ffpe_tumoral <- filter(lookup_table, preservation == "FFPE", sample_type == "Tumoral")
-frozen_tumoral <- filter(lookup_table, preservation == "Frozen", sample_type == "Tumoral")
+ffpe_tumoral <- lookup_table[(lookup_table$preservation == "FFPE" & lookup_table$sample_type == "Tumoral"), ]
+frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_table$sample_type == "Tumoral"), ]
 
-### Prepare data for evaluation
 
-prepare.eval.data <- function(ffpe_tumoral, sample_index) {
+print(glue("Evaluating: "))
 
-	## obtain metadata for one of the samples  
-	sample_name <- ffpe_tumoral[sample_index, "sample_name"]
-	tissue <- ffpe_tumoral[sample_index, "tissue_type"]
+## Perform per sample evaluation
+for (index in seq_len(dim(ffpe_tumoral)[1])){
+
+	### Prepare data for evaluation
+
+	## obtain metadata for current sample
+	sample_name <- ffpe_tumoral[index, "sample_name"]
+	tissue <- ffpe_tumoral[index, "tissue_type"]
 	variant_caller <- "MuTect2"
-	
-	# Read in the FFPE-Filtered output of a sample
-	## Read and process mobsnvf outputs
-	mobsnvf_output <- read.delim(glue("{ffpe_snvf.dir}/mobsnvf/{sample_name}/{sample_name}.mobsnvf.snv"))
+
+	print(sprintf("%d. %s", index, sample_name))
+
+	# Read in the FFPE-Filtered output for current sample
+
+	mobsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "mobsnvf", sample_name, sprintf("%s.mobsnvf.snv", sample_name)))
 	### Retain only C>T mutations in mobsnvf output
 	mobsnvf_output <- mobsnvf_output[complete.cases(mobsnvf_output), ]
 
 
-	## Read and process vafsnvf outputs
-	vafsnvf_output <- read.delim(glue("{ffpe_snvf.dir}/vafsnvf/{sample_name}/{sample_name}.vafsnvf.snv"))
+	vafsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "vafsnvf", sample_name, sprintf("%s.vafsnvf.snv", sample_name)))
 
-
-	## Read and process sobdetector outputs
-	sobdetector_output <- read.delim(glue("{ffpe_snvf.dir}/sobdetector/{sample_name}/{sample_name}.sobdetector.snv"))
-	### Drop values where it could not determine wether an SNV was an artifact or real mutation
-	sobdetector_output <- drop_na(sobdetector_output, artiStatus)
-	### Change SOBdetector to SOB Column to numeric
+	## SOBDetector output column explanations:
+	## 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
+	## 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
+	sobdetector_output <- read.delim(file.path(ffpe_snvf.dir, "sobdetector", sample_name, sprintf("%s.sobdetector.snv", sample_name)))
+	## Some Variants are not evaluated by SOBdetector.
+	## These are denoted with a "." under the SOB (score) column. These variants are removed.
+	sobdetector_output <- sobdetector_output[!(sobdetector_output$SOB == "."), ]
+	### SOB Column is changed back to numeric as it was read in as character due to presence of "."
 	sobdetector_output$SOB <- as.numeric(sobdetector_output$SOB)
 	### Change values where SOB score is nan to 0 as artiStatus column for these values are annotated as SNV i.e real mutation
 	### By default, higher SOB score indicates likelihood of artifact. This is why real mutations are set to 0
-	sobdetector_output$SOB <- if_else(is.nan(sobdetector_output$SOB), 0, sobdetector_output$SOB)
+	sobdetector_output$SOB <- ifelse(is.nan(sobdetector_output$SOB), 0, sobdetector_output$SOB)
 
 
-	## Read and process GATK Orientation Bias Mixture Model outputs
-	gatk_obmm_output <- read_vcf(glue("{vcf.dir}/{sample_name}/{sample_name}.vcf.gz"), columns = c("chrom", "pos", "ref", "alt", "filter"))
+	## GATK Orientation Bias Mixture Model outputs
+	gatk_obmm_output <- read_vcf(file.path(vcf.dir, sample_name, sprintf("%s.vcf.gz", sample_name)), columns = c("chrom", "pos", "ref", "alt", "filter"))
 	### GATK Orientation Bias mixture model makes binary classification. This is casted into scores 0 and 1
 	gatk_obmm_output$obmm <- ifelse(grepl("orientation", gatk_obmm_output$filter), 0, 1)
-
 
 	# Add common IDs to the outputs
 	mobsnvf_output <- add_id(mobsnvf_output)
 	vafsnvf_output <- add_id(vafsnvf_output)
 	sobdetector_output <- add_id(sobdetector_output)
 	gatk_obmm_output <- add_id(gatk_obmm_output)
-	
-	
+
+
 	# Now combine all outputs into a single dataframe
 	## This removes C>T mutation from the output of other models
-	## This also ensures that an uniform variant set is maintained. As some may variants are omitted by some models
-	all_model_scores <- select(mobsnvf_output, chrom, pos, ref, alt, snv, FOBP)
-	all_model_scores <- left_join(all_model_scores, select(vafsnvf_output, snv, VAFF), by = "snv")
-	all_model_scores <- left_join(all_model_scores, select(sobdetector_output, snv, SOB), by = "snv")
-	all_model_scores <- left_join(all_model_scores, select(gatk_obmm_output, snv, obmm), by = "snv")
-	
-	
+	## This also ensures that a uniform variant set is maintained. As some variants may be omitted by some models
+	all_model_scores <- mobsnvf_output[, c("chrom", "pos", "ref", "alt", "snv", "FOBP")]
+	all_model_scores <- merge(all_model_scores, vafsnvf_output[, c("snv", "VAFF")], by = "snv", all.x = TRUE)
+	all_model_scores <- merge(all_model_scores, sobdetector_output[, c("snv", "SOB")], by = "snv", all.x = TRUE)
+	all_model_scores <- merge(all_model_scores, gatk_obmm_output[, c("snv", "obmm")], by = "snv", all.x = TRUE)
+
+
 	# Construct the Ground Truth SNVs
 	## To do this we make a union set for all the FF samples matched to this FFPE sample
 	## This dataset has matched FFPE and FF from the same patient.
@@ -93,11 +99,8 @@ prepare.eval.data <- function(ffpe_tumoral, sample_index) {
 
 	## Obtain the sample names for the frozen samples within the same tissue
 	truth_samples <- frozen_tumoral_subset$sample_name
-	## Retrieve the path for the truth samples as a vector
-	truth_sample_paths <- glue("{vcf.dir}/{truth_samples}/{truth_samples}.vcf.gz")
-	## Construct a variant set from these FFPE
+	truth_sample_paths <- file.path(vcf.dir, truth_samples, sprintf("%s.vcf.gz", truth_samples))
 	truths <- snv_union(truth_sample_paths)
-	## Add unique IDs to the truth set
 	truths <- add_id(truths)
 
 
@@ -113,51 +116,31 @@ prepare.eval.data <- function(ffpe_tumoral, sample_index) {
 	## Hence, we flip scores for MOBSNVF and SOBDetector to make higher score signify a real muatation
 	all_model_scores_truths$FOBP <- -all_model_scores_truths$FOBP
 	all_model_scores_truths$SOB <- -all_model_scores_truths$SOB
-
-	list(
-		sample_id = sample_name,
-		model_scores_labels_truths = all_model_scores_truths,
-		ground_truth_variants =  truths
-	)
-
-}
-
-
-print(glue("Evaluating: "))
-
-## Perform per sample evaluation
-for (index in seq_len(dim(ffpe_tumoral)[1])){
-
-	## Prepare the data for evaluation
-	eval_data <- prepare.eval.data(ffpe_tumoral, index)
-
-	## Retrieve sample name for the iteration
-	sample_name <- eval_data$sample_id
-	print(glue("\t{index}. {sample_name}"))
-
-	## Create output directory for saving the evaluation data for each sample
-	out_dir <- glue("{main.outdir}/model_scores_labels_truths/{sample_name}")
+	
+	
+	## Create output directory for saving the evaluation variant set for each sample
+	out_dir <- file.path(main.outdir, "model_scores_labels_truths", sample_name)
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-	qwrite(eval_data$model_scores_labels_truths, glue("{out_dir}/{sample_name}_model_scores_labels_truths.tsv"))
+	qwrite(all_model_scores_truths, file.path(out_dir, sprintf("%s_model_scores_labels_truths.tsv", sample_name)))
 
 	## Create an output directory for saving the ground truth for each sample
-	out_dir <- glue("{main.outdir}/ground_truth/{sample_name}")
+	out_dir <- file.path(main.outdir, "ground_truth", sample_name)
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-	qwrite(eval_data$ground_truth_variants, glue("{out_dir}/{sample_name}_ground_truth_variants.tsv"))
+	qwrite(truths, file.path(out_dir, sprintf("%s_ground_truth_variants.tsv", sample_name)))
 
 
 	# Evaluation using Precrec
-	eval_data_df <- eval_data$model_scores_labels_truths
+	eval_data_df <- all_model_scores_truths
 	precrec_eval_metrics <- get.precrec.eval.metrics(eval_data_df, sample_name, score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
 
 	## Create output directory for roc prc and auc evaluation
-	out_dir <- glue("{main.outdir}/roc-prc-auc/precrec/{sample_name}")
+	out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec", sample_name)
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-	qwrite(precrec_eval_metrics$auc_table, glue("{out_dir}/{sample_name}_auc_table.tsv"))
-	qwrite(precrec_eval_metrics$precrec_eval_object, glue("{out_dir}/{sample_name}_precrec_eval.rds"))
-	qwrite(precrec_eval_metrics$roc, glue("{out_dir}/{sample_name}_roc_coordinates.tsv"))
-	qwrite(precrec_eval_metrics$prc, glue("{out_dir}/{sample_name}_prc_coordinates.tsv"))
+	qwrite(precrec_eval_metrics$auc_table, file.path(out_dir, sprintf("%s_auc_table.tsv", sample_name)))
+	qwrite(precrec_eval_metrics$precrec_eval_object, file.path(out_dir, sprintf("%s_precrec_eval.rds", sample_name)))
+	qwrite(precrec_eval_metrics$roc, file.path(out_dir, sprintf("%s_roc_coordinates.tsv", sample_name)))
+	qwrite(precrec_eval_metrics$prc, file.path(out_dir, sprintf("%s_prc_coordinates.tsv", sample_name)))
 
 }
 
@@ -191,7 +174,7 @@ liver_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_sc
 colon_samples_scores_labels_truths <- all_scores_labels_truths[str_detect(all_scores_labels_truths$sample_name, "Colon"), ]
 
 ## Create overall eval for:
-print(glue("\n\tMaking aggregated evaluations"))
+print("Making aggregated evaluations")
 ### All Samples
 precrec_all_samples_eval <- get.precrec.eval.metrics(all_scores_labels_truths, "EGAD00001004066 All FFPE tomoral Samples", score_columns = c("FOBP", "VAFF", "SOB", "obmm"), model_names = c("mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm"))
 ### Liver Samples
@@ -202,34 +185,37 @@ precrec_colon_samples_eval <- get.precrec.eval.metrics(colon_samples_scores_labe
 
 ## Write aggregated eval input data to file
 
-out_dir <- glue("{main.outdir}/model_scores_labels_truths")
+out_dir <- file.path(main.outdir, "model_scores_labels_truths")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
-qwrite(all_scores_labels_truths, glue("{out_dir}/all_samples_scores_labels_truths.tsv"))
-qwrite(liver_samples_scores_labels_truths, glue("{out_dir}/liver_samples_scores_labels_truths.tsv"))
-qwrite(colon_samples_scores_labels_truths, glue("{out_dir}/colon_samples_scores_labels_truths.tsv"))
+qwrite(all_scores_labels_truths, file.path(out_dir, "all_samples_scores_labels_truths.tsv"))
+qwrite(liver_samples_scores_labels_truths, file.path(out_dir, "liver_samples_scores_labels_truths.tsv"))
+qwrite(colon_samples_scores_labels_truths, file.path(out_dir, "colon_samples_scores_labels_truths.tsv"))
 
 
 ## Write aggregated eval data to file
-out_dir <- glue("{main.outdir}/roc-prc-auc/precrec")
+out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec")
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
-### Write all samples evaluation
-qwrite(precrec_all_samples_eval$auc_table, glue("{out_dir}/all_samples_auc_table.tsv"))
-qwrite(precrec_all_samples_eval$precrec_eval_object, glue("{out_dir}/all_samples_precrec_eval.rds"))
-qwrite(precrec_all_samples_eval$roc, glue("{out_dir}/all_samples_roc_coordinates.tsv"))
-qwrite(precrec_all_samples_eval$prc, glue("{out_dir}/all_samples_prc_coordinates.tsv"))
+### Aggregated all samples evaluation
+qwrite(precrec_all_samples_eval$auc_table, file.path(out_dir, "all_samples_auc_table.tsv"))
+qwrite(precrec_all_samples_eval$precrec_eval_object, file.path(out_dir, "all_samples_precrec_eval.rds"))
+qwrite(precrec_all_samples_eval$roc, file.path(out_dir, "all_samples_roc_coordinates.tsv"))
+qwrite(precrec_all_samples_eval$prc, file.path(out_dir, "all_samples_prc_coordinates.tsv"))
 
-### Write liver samples evaluation
-qwrite(precrec_liver_samples_eval$auc_table, glue("{out_dir}/liver_samples_auc_table.tsv"))
-qwrite(precrec_liver_samples_eval$precrec_eval_object, glue("{out_dir}/liver_samples_precrec_eval.rds"))
-qwrite(precrec_liver_samples_eval$roc, glue("{out_dir}/liver_samples_roc_coordinates.tsv"))
-qwrite(precrec_liver_samples_eval$prc, glue("{out_dir}/liver_samples_prc_coordinates.tsv"))
+### Aggregated liver samples evaluation
+qwrite(precrec_liver_samples_eval$auc_table, file.path(out_dir, "liver_samples_auc_table.tsv"))
+qwrite(precrec_liver_samples_eval$precrec_eval_object, file.path(out_dir, "liver_samples_precrec_eval.rds"))
+qwrite(precrec_liver_samples_eval$roc, file.path(out_dir, "liver_samples_roc_coordinates.tsv"))
+qwrite(precrec_liver_samples_eval$prc, file.path(out_dir, "liver_samples_prc_coordinates.tsv"))
 
-### Write colon samples evaluation 
-qwrite(precrec_colon_samples_eval$auc_table, glue("{out_dir}/colon_samples_auc_table.tsv"))
-qwrite(precrec_colon_samples_eval$precrec_eval_object, glue("{out_dir}/colon_samples_precrec_eval.rds"))
-qwrite(precrec_colon_samples_eval$roc, glue("{out_dir}/colon_samples_roc_coordinates.tsv"))
-qwrite(precrec_colon_samples_eval$prc, glue("{out_dir}/colon_samples_prc_coordinates.tsv"))
+### Aggregated colon samples evaluation 
+qwrite(precrec_colon_samples_eval$auc_table, file.path(out_dir, "colon_samples_auc_table.tsv"))
+qwrite(precrec_colon_samples_eval$precrec_eval_object, file.path(out_dir, "colon_samples_precrec_eval.rds"))
+qwrite(precrec_colon_samples_eval$roc, file.path(out_dir, "colon_samples_roc_coordinates.tsv"))
+qwrite(precrec_colon_samples_eval$prc, file.path(out_dir, "colon_samples_prc_coordinates.tsv"))
 
 print("Done")
+
+
+
