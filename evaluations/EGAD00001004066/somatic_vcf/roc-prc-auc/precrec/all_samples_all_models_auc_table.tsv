@@ -1,0 +1,5 @@
+sample_id	model	auroc	auprc
+all-samples_aggregated	gatk-obmm	0.50366970430367	0.0361189056426738
+all-samples_aggregated	mobsnvf	0.924316189155864	0.727092985368248
+all-samples_aggregated	sobdetector	0.835313150254488	0.137500928991097
+all-samples_aggregated	vafsnvf	0.396344322879882	0.0553502143354641
