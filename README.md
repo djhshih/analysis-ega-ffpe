@@ -38,7 +38,7 @@ This repository aims to analyze several datasets from EGA with the goal to evalu
 
         - EGAD00001000834: The paired FF/FFPE colon set, Exome-Seq. Consists of 19 paired FF/FFPE colorectal carcinoma samples; in 13 of these, matching normal FF colon samples. This set had been stored for 2 – 13 years.
 
-        The publication also mentions a test set with a total of 16 samples from normal liver, normal (reactive) tonsil, normal skin (from mastectomy specimen), liver, lung, breast, and bladder carcinomas. Matching FF samples were available from the liver and tonsil samples. However, this is not seen in the repository.
+        The publication also mentions a test set with a total of 16 samples from normal liver, normal (reactive) tonsil, normal skin (from mastectomy specimen), liver, lung, breast, and bladder carcinomas. Matching FF samples available from the liver and tonsil samples. However, this is not seen in the repository.
 
 
 ## Dependencies
