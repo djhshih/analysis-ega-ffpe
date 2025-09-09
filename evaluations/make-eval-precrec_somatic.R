@@ -258,8 +258,9 @@ qwrite(all_liver_samples_scores_truths, file.path(out_dir, "all_liver_samples_al
 ## Function to obtain ROC and PRC coordinates and AUC table
 ## @ Param model_scores_truths_df data.frame of variants with model scores, ground truth annotation, and model names
 ## @ Param model_name string with the name of model to be evaluated
+## @ Param sample_name string identifier for the sample(s) to be evaluatied
 ## @ Return list consisting of auc, roc, and prc table for each model
-get_eval_metrics <- function(model_scores_truths_df, model_name){
+get_eval_metrics <- function(model_scores_truths_df, model_name, sample_id){
 
 	per_model_scores_truths <- all_scores_truths[all_scores_truths$model == model_name, ]
 
@@ -281,7 +282,7 @@ get_eval_metrics <- function(model_scores_truths_df, model_name){
 	colnames(per_model_auc) <- gsub("aucs\\.ROC", "auroc", colnames(per_model_auc))
 	colnames(per_model_auc) <- gsub("aucs\\.PRC", "auprc", colnames(per_model_auc))
 	colnames(per_model_auc) <- gsub("modnames", "model", colnames(per_model_auc))
-	per_model_auc$sample_id <- sample_name
+	per_model_auc$sample_id <- sample_id
 	per_model_auc <- per_model_auc[, c("sample_id", "model", "auroc", "auprc")]
 
 	# Return eval data
@@ -319,13 +320,13 @@ for (model_name in models){
 	message(sprintf("Evaluating overall performance of %s:", model_name))
 	
 	message("	Across All Samples")
-	all_sample_eval <- get_eval_metrics(all_scores_truths, model_name)
+	all_sample_eval <- get_eval_metrics(all_scores_truths, model_name, "all-samples_aggregated")
 	
 	message("	Across All Colon Samples")
-	all_colon_samples_eval <- get_eval_metrics(all_colon_samples_scores_truths, model_name)
+	all_colon_samples_eval <- get_eval_metrics(all_colon_samples_scores_truths, model_name, "all-colon-samples_aggregated")
 	
 	message("	Across All Liver Samples")
-	all_liver_samples_eval <- get_eval_metrics(all_liver_samples_scores_truths, model_name)
+	all_liver_samples_eval <- get_eval_metrics(all_liver_samples_scores_truths, model_name, "all-liver-samples_aggregated")
 	
 	
 	## Compile ROC, PRC, and AUC
