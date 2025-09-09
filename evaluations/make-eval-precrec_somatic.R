@@ -5,43 +5,37 @@ library(io)
 library(precrec)
 library(argparser)
 
-## Importing module containing common functions for evaluations
+# Importing module containing common functions for evaluations
 source("../R/eval.R")
 
+# Setup Directories
 
-
-### Setup Directories
-
-## Directory for FFPE SNVF outputs
+# Directory for FFPE SNVF outputs
 dataset_id <- "EGAD00001004066"
 ffpe_snvf.dir <- sprintf("../ffpe-snvf/%s/somatic_vcf", dataset_id)
-## Directory for the Somatic VCFs
+# Directory for the Somatic VCFs
 vcf.dir <- sprintf("../vcf/%s/somatic_vcf", dataset_id)
-## Output directory
+# Output directory
 main.outdir <- sprintf("%s/somatic_vcf", dataset_id)
 
 
-### Read Annotation Table
-
+# Read Annotation Table
 lookup_table <- read.delim(sprintf("../annot/%s/sample_annotations.tsv", dataset_id))
-## create a sample name column
+# create a sample name column which are the file names for the samples
 lookup_table$sample_name <- paste0(gsub(" ", "-", lookup_table$title), "_", lookup_table$sample_alias)
 
-
-
-## Stratify annotation table based on FFPE and FF Somatic Variants
+# Stratify annotation table based on FFPE and FF Somatic Variants
 ffpe_tumoral <- lookup_table[(lookup_table$preservation == "FFPE" & lookup_table$sample_type == "Tumoral"), ]
 frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_table$sample_type == "Tumoral"), ]
-
 
 message("Evaluating: ")
 
 ## Perform per sample evaluation
-for (index in seq_len(dim(ffpe_tumoral)[1])){
+for (index in seq_len(nrow(ffpe_tumoral))){
 
-	### Prepare data for evaluation
+	# Prepare data for evaluation
 
-	## obtain metadata for current sample
+	# obtain metadata for current sample
 	sample_name <- ffpe_tumoral[index, "sample_name"]
 	tissue <- ffpe_tumoral[index, "tissue_type"]
 	variant_caller <- "MuTect2"
@@ -51,24 +45,23 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 	# Read in the FFPE-Filtered output for current sample
 
 	mobsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "mobsnvf", sample_name, sprintf("%s.mobsnvf.snv", sample_name)))
-	### Retain only C>T mutations in mobsnvf output
+	# Retain only C>T mutations in mobsnvf output
 	mobsnvf_output <- mobsnvf_output[complete.cases(mobsnvf_output$FOBP), ]
 
 
 	vafsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "vafsnvf", sample_name, sprintf("%s.vafsnvf.snv", sample_name)))
 	vafsnvf_output <- vafsnvf_output[complete.cases(vafsnvf_output$VAFF), ]
 
-	## SOBDetector output column explanations:
-	## 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
-	## 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
+	# SOBDetector output column explanations:
+	# 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
+	# 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
 	sobdetector_output <- read.delim(file.path(ffpe_snvf.dir, "sobdetector", sample_name, sprintf("%s.sobdetector.snv", sample_name)))
-	## Some Variants are not evaluated by SOBdetector.
-	## These are denoted with a "." under the SOB (score) column. These variants are removed.
+	# variants ignored by SOBdetector have score of "."
 	sobdetector_output <- sobdetector_output[!(sobdetector_output$SOB == "."), ]
-	### SOB Column is changed back to numeric as it was read in as character due to presence of "."
+	# now, it's safe to convert to numeric
 	sobdetector_output$SOB <- as.numeric(sobdetector_output$SOB)
-	### Change values where SOB score is nan to 0 as artiStatus column for these values are annotated as SNV i.e real mutation
-	### By default, higher SOB score indicates likelihood of artifact. This is why real mutations are set to 0
+	# SOBdetector score = 0 indicates that it is not artifact
+	# variants classified by SOBdetect as "snv" have score of NaN
 	sobdetector_output$SOB <- ifelse(is.nan(sobdetector_output$SOB), 0, sobdetector_output$SOB)
 	### Precaution to remove the any NA Scores if present
 	sobdetector_output <- sobdetector_output[complete.cases(sobdetector_output$SOB), ]
@@ -123,25 +116,21 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 	sobdetector_eval <- with(sobdetector_output, evalmod(scores = SOB, labels = truth, modnames = "sobdetector"))
 	gatk_obmm_eval <- with(gatk_obmm_output, evalmod(scores = obmm, labels = truth, modnames = "gatk-obmm"))
 
-	## Combine precrec eval object
-	all_models_eval <- list(
-		mobsnvf = mobsnvf_eval, 
-		vafsnf = vafsnvf_eval,
-		sobdetector = sobdetector_eval,
-		gatk_obmm = gatk_obmm_eval
-	)
 
-	## Get evaluation dataframe. This consisits of coordinates for making ROC and PRC plots
+	# Get evaluation dataframe. 
+	## Columns consisits of:
+	## x and y coordinates for making ROC and PRC plots,
+	## model name, and plot type (ROC or PRC)
 	mobsnvf_eval_df <- as.data.frame(mobsnvf_eval)
 	vafsnvf_eval_df <- as.data.frame(vafsnvf_eval)
 	sobdetector_eval_df <- as.data.frame(sobdetector_eval)
 	gatk_obmm_eval_df <- as.data.frame(gatk_obmm_eval)
 
-	## Combine all evaluation dataframes into one
+	# Combine all evaluation dataframes into one
 	all_models_eval_df <- rbind(mobsnvf_eval_df, vafsnvf_eval_df, sobdetector_eval_df, gatk_obmm_eval_df)
 	all_models_eval_df$dsid <- NULL
 
-	## Stratify ROC PRC coordinates
+	# Stratify ROC PRC coordinates
 	all_models_roc <- all_models_eval_df[all_models_eval_df$type == "ROC", ]
 	all_models_prc <- all_models_eval_df[all_models_eval_df$type == "PRC", ]
 
@@ -168,7 +157,15 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 	all_auc$sample_id <- sample_name
 
 
-	## Create output directory for saving the variant set with scores and ground truth labels for each sample
+	# Combine precrec eval objects, for saving as RDS
+	all_models_eval <- list(
+		mobsnvf = mobsnvf_eval, 
+		vafsnf = vafsnvf_eval,
+		sobdetector = sobdetector_eval,
+		gatk_obmm = gatk_obmm_eval
+	)
+
+	# Create output directory for saving the variant set with scores and ground truth labels for each sample
 	out_dir <- file.path(main.outdir, "model-scores_truths", sample_name)
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 	qwrite(mobsnvf_output, file.path(out_dir, sprintf("%s_mobsnvf-scores_truths.tsv", sample_name)))
@@ -176,13 +173,12 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 	qwrite(sobdetector_output, file.path(out_dir, sprintf("%s_sobdetector-scores_truths.tsv", sample_name)))
 	qwrite(gatk_obmm_output, file.path(out_dir, sprintf("%s_gatk-obmm-scores_truths.tsv", sample_name)))
 
-	## Create an output directory for saving the ground truth for each sample
+	# Create an output directory for saving the ground truth for each sample
 	out_dir <- file.path(main.outdir, "ground_truth", sample_name)
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 	qwrite(truths, file.path(out_dir, sprintf("%s_ground_truth_variants.tsv", sample_name)))
 
-
-	## Create output directory for roc prc and auc evaluation
+	# Create output directory for roc prc and auc evaluation
 	out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec", sample_name)
 	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -194,13 +190,10 @@ for (index in seq_len(dim(ffpe_tumoral)[1])){
 }
 
 
+# Perform overall evaluation
 
-
-## Perform overall evaluation
-
-### Read in paths for the evaluation data for each sample samples
+## Read in paths for the evaluation data for each sample samples
 scores_truths_datasets_paths <- Sys.glob("EGAD00001004066/somatic_vcf/model-scores_truths/*/*.tsv")
-
 
 model_score_columns <- c(
 	"gatk-obmm" = "obmm",
@@ -238,15 +231,10 @@ for (path in scores_truths_datasets_paths){
 
 }
 
-
-
-
 tissues <- c("Colon", "Liver")
 models <- unique(all_scores_truths$model)
 
-
-## Evaluate each tissue type and model
-
+# Evaluate each tissue type and model
 for (model_name in models){
 
 	message(sprintf("Evaluating overall performance of %s:", model_name))
@@ -258,16 +246,16 @@ for (model_name in models){
 	per_model_eval_df <- as.data.frame(per_model_eval)
 	per_model_eval_df$dsid <- NULL
 
-	## Stratify ROC PRC coordinates
+	# Stratify ROC PRC coordinates
 	per_model_roc <- per_model_eval_df[per_model_eval_df$type == "ROC", ]
 	per_model_prc <- per_model_eval_df[per_model_eval_df$type == "PRC", ]
 
-	## Get AUC
+	# Get AUC
 	per_model_auc <- auc(per_model_eval)
 	per_model_auc$dsids <- NULL
 
 
-	## Evaluate per tissue type
+	# Evaluate per tissue type
 	for (tissue_type in tissues){
 		message(sprintf("	Across %s samples", tissue_type))
 		per_model_per_tissue_scores_truths <- per_model_scores_truths[grepl(tissue_type, per_model_scores_truths$sample_name), ]
@@ -313,10 +301,4 @@ for (model_name in models){
 	qwrite(per_model_prc, file.path(out_dir, sprintf("all_samples_%s_prc_coordinates.tsv", model_name)))
 
 }
-
-
-
-
-
-
 
