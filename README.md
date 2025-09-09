@@ -1,6 +1,6 @@
 # Analysis EGA FFPE
 
-This repository aims to analyze several datasets from EGA with the goal to evaluate the several FFPE artifact filtering methods in the context of somatic and germline variant calling.
+This repository aims to analyze several datasets from EGA with the goal to evaluate the several FFPE artifact filtering tools. Here, FFPE artifact filtering is tested in the context of somatic and germline variant calling. Somatic variants were called using Mutect2 with and without matched normal.
 
 ## Studies
 
@@ -23,7 +23,7 @@ This repository aims to analyze several datasets from EGA with the goal to evalu
 
 
 - **EGAS00001000737:**
-    - **Datasets:** EGAD00001000830, EGAD00001000831, EGAD00001000832, EGAD00001000834, 
+    - **Datasets:** EGAD00001000830, EGAD00001000831, EGAD00001000832, EGAD00001000834 
     - **Status:** sent request on EGA; sent email to Paul Flicek (flicek@ebi.ac.uk), Henrik Hornshøj (hhj@ki.au.dk) and Søren Vang (vang@ki.au.dk) on 25/07/07; waiting
     - **Time required for access:** Access Pending
     - **Sequencing Method:** WXS, RNA-Seq
@@ -55,7 +55,7 @@ This repository aims to analyze several datasets from EGA with the goal to evalu
 - samblaster
 - sambamba
 
-R libraries:
+**R libraries:**
 
 - io
 - precrec
@@ -68,7 +68,7 @@ R libraries:
 - hrbrthemes
 - viridis
 
-Python Libraries:
+**Python Libraries:**
 - polars
 - pandas
 - numpy
@@ -77,12 +77,29 @@ Python Libraries:
 - pysam
 
 
+## FFPE filtering tools status
+
+- **mobsnvf:** Executed
+- **vafsnvf:** Executed
+- **SOBdetector:** Executed
+- **GATK Orientation Bias Mixture Model**: Executed
+- **MicroSEC:** Execution Pending
+- **IdeaFix:** Installation Pending
+- **FFPolish:** Installation Failed
+
+
+## To do
+- Complete writing Plotting Script
+- Run MicroSEC
+- Try installing IdeaFix
+- Make Mutation Signature plots
+- Make summary statistics tables
+- Try out Mutect2 tumor only mode on the EGAD00001004066 dataset
+- Create correlation table between SNV summary statistics and AUROC & AUPRC for each tool.
+
 
 ## Issues
 
 Precrec does not handle scores with NA values correctly i.e it does not ignore them during evaluation as it should. Due to this NA values should be removed from the score set before being passed to precrec.
-
-
-
 
 
