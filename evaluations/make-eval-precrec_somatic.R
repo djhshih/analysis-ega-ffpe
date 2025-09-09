@@ -8,6 +8,7 @@ library(argparser)
 # Importing module containing common functions for evaluations
 source("../R/eval.R")
 
+
 # Setup Directories
 
 # Directory for FFPE SNVF outputs
@@ -19,6 +20,7 @@ vcf.dir <- sprintf("../vcf/%s/somatic_vcf", dataset_id)
 main.outdir <- sprintf("%s/somatic_vcf", dataset_id)
 
 
+
 # Read Annotation Table
 lookup_table <- read.delim(sprintf("../annot/%s/sample_annotations.tsv", dataset_id))
 # create a sample name column which are the file names for the samples
@@ -28,9 +30,13 @@ lookup_table$sample_name <- paste0(gsub(" ", "-", lookup_table$title), "_", look
 ffpe_tumoral <- lookup_table[(lookup_table$preservation == "FFPE" & lookup_table$sample_type == "Tumoral"), ]
 frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_table$sample_type == "Tumoral"), ]
 
-message("Evaluating: ")
 
-## Perform per sample evaluation
+
+# Perform per sample evaluation
+message("Evaluating: ")
+## Initialize dataframe to collect AUC across all samples
+auc_compilation <- data.frame()
+
 for (index in seq_len(nrow(ffpe_tumoral))){
 
 	# Prepare data for evaluation
@@ -136,26 +142,21 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 
 	# Get AUC for each model
 	mobsnvf_auc <- auc(mobsnvf_eval)
-	mobsnvf_auc$model <- "mobsnvf"
-
 	vafsnvf_auc <- auc(vafsnvf_eval)
-	vafsnvf_auc$model <- "vafsnvf"
-
 	sobdetector_auc <- auc(sobdetector_eval)
-	sobdetector_auc$model <- "sobdetector"
-
 	gatk_obmm_auc <- auc(gatk_obmm_eval)
-	gatk_obmm_auc$model <- "gatk_obmm"
 
 
 	# Compile model's AUC
 	all_auc <- rbind(mobsnvf_auc, vafsnvf_auc, sobdetector_auc, gatk_obmm_auc)
 	all_auc$dsids <- NULL
-	all_auc <- reshape(all_auc, idvar = c("modnames", "model"), timevar = "curvetypes", direction = "wide")
+	all_auc <- reshape(all_auc, idvar = c("modnames"), timevar = "curvetypes", direction = "wide")
 	colnames(all_auc) <- gsub("aucs\\.ROC", "auroc", colnames(all_auc))
 	colnames(all_auc) <- gsub("aucs\\.PRC", "auprc", colnames(all_auc))
+	colnames(all_auc) <- gsub("modnames", "model", colnames(all_auc))
 	all_auc$sample_id <- sample_name
-
+	all_auc <- all_auc[, c("sample_id", "model", "auroc", "auprc")]
+	auc_compilation <- rbind(auc_compilation, all_auc)
 
 	# Combine precrec eval objects, for saving as RDS
 	all_models_eval <- list(
@@ -189,6 +190,12 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 
 }
 
+# Create output directory for roc prc and auc evaluation
+message("Compiling individual AUCs from each sample")
+out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+qwrite(auc_compilation, file.path(out_dir, sprintf("compiled_per_sample_auc_table.tsv")))
+
 
 # Perform overall evaluation
 
@@ -202,7 +209,7 @@ model_score_columns <- c(
 	"vafsnvf" = "VAFF"
 )
 
-### Concatenate score_labels_truth dataset for all samples into one
+## Initialize data.frame to collect each models scores and ground truth label data from each sample into one
 all_scores_truths <- data.frame()
 
 ## Evaluate the combined results for each models across all samples and tissue type 
@@ -231,14 +238,29 @@ for (path in scores_truths_datasets_paths){
 
 }
 
-tissues <- c("Colon", "Liver")
-models <- unique(all_scores_truths$model)
 
-# Evaluate each tissue type and model
-for (model_name in models){
 
-	message(sprintf("Evaluating overall performance of %s:", model_name))
-	message("	Across All samples")
+## Stratify across liver and colon samples
+message("Stratifying combined scores based on tissue type")
+all_colon_samples_scores_truths <- all_scores_truths[grepl("Colon", all_scores_truths$sample_name), ]
+all_liver_samples_scores_truths <- all_scores_truths[grepl("Liver", all_scores_truths$sample_name), ]
+
+
+
+## Save the combined score_truth set
+message("Saving combined and stratified scores")
+out_dir <- file.path(main.outdir, "model-scores_truths")
+qwrite(all_scores_truths, file.path(out_dir, "all_samples_all-models-scores_truths.tsv"))
+qwrite(all_colon_samples_scores_truths, file.path(out_dir, "all_colon_samples_all-models-scores_truths.tsv"))
+qwrite(all_liver_samples_scores_truths, file.path(out_dir, "all_liver_samples_all-models-scores_truths.tsv"))
+
+
+## Function to obtain ROC and PRC coordinates and AUC table
+## @ Param model_scores_truths_df data.frame of variants with model scores, ground truth annotation, and model names
+## @ Param model_name string with the name of model to be evaluated
+## @ Return list consisting of auc, roc, and prc table for each model
+get_eval_metrics <- function(model_scores_truths_df, model_name){
+
 	per_model_scores_truths <- all_scores_truths[all_scores_truths$model == model_name, ]
 
 	per_model_eval <- with(per_model_scores_truths, evalmod(scores = score, labels = truth, modnames = model_name))
@@ -252,53 +274,101 @@ for (model_name in models){
 
 	# Get AUC
 	per_model_auc <- auc(per_model_eval)
+
+	## Format table
 	per_model_auc$dsids <- NULL
+	per_model_auc <- reshape(per_model_auc, idvar = c("modnames"), timevar = "curvetypes", direction = "wide")
+	colnames(per_model_auc) <- gsub("aucs\\.ROC", "auroc", colnames(per_model_auc))
+	colnames(per_model_auc) <- gsub("aucs\\.PRC", "auprc", colnames(per_model_auc))
+	colnames(per_model_auc) <- gsub("modnames", "model", colnames(per_model_auc))
+	per_model_auc$sample_id <- sample_name
+	per_model_auc <- per_model_auc[, c("sample_id", "model", "auroc", "auprc")]
+
+	# Return eval data
+	list(
+		precrec_eval_object = per_model_eval,
+		auc = per_model_auc,
+		roc = per_model_roc,
+		prc = per_model_prc
+	)
+}
+
+tissues <- c("Colon", "Liver")
+models <- unique(all_scores_truths$model)
+
+## Initialize data structures to compile evaluation results from each samples
+all_model_overall_auc <- data.frame()
+all_model_overall_roc <- data.frame()
+all_model_overall_prc <- data.frame()
+all_model_overall_precrec_eval <- list()
+
+all_model_overall_colon_auc <- data.frame()
+all_model_overall_colon_roc <- data.frame()
+all_model_overall_colon_prc <- data.frame()
+all_model_overall_colon_precrec_eval <- list()
+
+all_model_overall_liver_auc <- data.frame()
+all_model_overall_liver_roc <- data.frame()
+all_model_overall_liver_prc <- data.frame()
+all_model_overall_liver_precrec_eval <- list()
 
 
-	# Evaluate per tissue type
-	for (tissue_type in tissues){
-		message(sprintf("	Across %s samples", tissue_type))
-		per_model_per_tissue_scores_truths <- per_model_scores_truths[grepl(tissue_type, per_model_scores_truths$sample_name), ]
-		
-		per_model_per_tissue_eval <- with(per_model_per_tissue_scores_truths, evalmod(scores = score, labels = truth, modnames = model_name))
-		per_model_per_tissue_eval_df <- as.data.frame(per_model_per_tissue_eval)
-		per_model_per_tissue_eval_df$dsid <- NULL
+# Evaluate each tissue type and model
+for (model_name in models){
 
-		## Stratify ROC PRC coordinates
-		per_model_per_tissue_roc <- per_model_per_tissue_eval_df[per_model_per_tissue_eval_df$type == "ROC", ]
-		per_model_per_tissue_prc <- per_model_per_tissue_eval_df[per_model_per_tissue_eval_df$type == "PRC", ]
-
-		## Get AUC
-		per_model_per_tissue_auc <- auc(per_model_per_tissue_eval)
-		per_model_per_tissue_auc$dsids <- NULL
-
-
-		## Set output directory for saving variant scores dataframe for each model across all samples
-		out_dir <- file.path(main.outdir, "model-scores_truths")
-		qwrite(per_model_per_tissue_scores_truths, file.path(out_dir, sprintf("%s_samples_%s-scores_truths.tsv", tolower(tissue_type), model_name)))
-
-
-		## Set output directory for roc prc and auc evaluation for each model across all samples
-		out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec")
-		qwrite(per_model_per_tissue_eval, file.path(out_dir, sprintf("all_%s_samples_%s_precrec_eval.rds", tolower(tissue_type), model_name)))
-		qwrite(per_model_per_tissue_auc, file.path(out_dir, sprintf("all_%s_samples_%s_auc_table.tsv", tolower(tissue_type), model_name)))
-		qwrite(per_model_per_tissue_roc, file.path(out_dir, sprintf("all_%s_samples_%s_roc_coordinates.tsv", tolower(tissue_type), model_name)))
-		qwrite(per_model_per_tissue_prc, file.path(out_dir, sprintf("all_%s_samples_%s_prc_coordinates.tsv", tolower(tissue_type), model_name)))
-
-	}
+	message(sprintf("Evaluating overall performance of %s:", model_name))
 	
+	message("	Across All Samples")
+	all_sample_eval <- get_eval_metrics(all_scores_truths, model_name)
+	
+	message("	Across All Colon Samples")
+	all_colon_samples_eval <- get_eval_metrics(all_colon_samples_scores_truths, model_name)
+	
+	message("	Across All Liver Samples")
+	all_liver_samples_eval <- get_eval_metrics(all_liver_samples_scores_truths, model_name)
+	
+	
+	## Compile ROC, PRC, and AUC
+	message("Compiling ROC, PRC, and AUC")
+	### Across all samples
+	all_model_overall_auc <- rbind(all_model_overall_auc, all_sample_eval$auc)
+	all_model_overall_roc <- rbind(all_model_overall_roc, all_sample_eval$roc)
+	all_model_overall_prc <- rbind(all_model_overall_prc, all_sample_eval$prc)
+	all_model_overall_precrec_eval[[model_name]] <- all_sample_eval$precrec_eval_object
 
-	## Set output directory and save variant scores dataframe for each model across all samples
-	out_dir <- file.path(main.outdir, "model-scores_truths")
-	qwrite(per_model_scores_truths, file.path(out_dir, sprintf("all_samples_%s-scores_truths.tsv", model_name)))
+	### Across all colon samples
+	all_model_overall_colon_auc <- rbind(all_model_overall_colon_auc, all_colon_samples_eval$auc)
+	all_model_overall_colon_roc <- rbind(all_model_overall_colon_roc, all_colon_samples_eval$roc)
+	all_model_overall_colon_prc <- rbind(all_model_overall_colon_prc, all_colon_samples_eval$prc)
+	all_model_overall_colon_precrec_eval[[model_name]] <- all_sample_eval$precrec_eval_object
 
-
-	## Set output directory and save roc prc and auc evaluation for each model across all samples
-	out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec")
-	qwrite(per_model_eval, file.path(out_dir, sprintf("all_samples_%s_precrec_eval.rds", model_name)))
-	qwrite(per_model_auc, file.path(out_dir, sprintf("all_samples_%s_auc_table.tsv", model_name)))
-	qwrite(per_model_roc, file.path(out_dir, sprintf("all_samples_%s_roc_coordinates.tsv", model_name)))
-	qwrite(per_model_prc, file.path(out_dir, sprintf("all_samples_%s_prc_coordinates.tsv", model_name)))
+	### Across all liver samples
+	all_model_overall_liver_auc <- rbind(all_model_overall_liver_auc, all_liver_samples_eval$auc)
+	all_model_overall_liver_roc <- rbind(all_model_overall_liver_roc, all_liver_samples_eval$roc)
+	all_model_overall_liver_prc <- rbind(all_model_overall_liver_prc, all_liver_samples_eval$prc)
+	all_model_overall_liver_precrec_eval[[model_name]] <- all_sample_eval$precrec_eval_object
 
 }
+
+
+## Set output directory and save roc prc and auc evaluation for each model across:
+message("Saving compiled evaluation metrics")
+### all samples
+out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec")
+qwrite(all_model_overall_precrec_eval, file.path(out_dir, "all_samples_all_models_precrec_eval.rds"))
+qwrite(all_model_overall_auc, file.path(out_dir, "all_samples_all_models_auc_table.tsv"))
+qwrite(all_model_overall_roc, file.path(out_dir, "all_samples_all_models_roc_coordinates.tsv"))
+qwrite(all_model_overall_prc, file.path(out_dir, "all_samples_all_models_prc_coordinates.tsv"))
+
+### all colon samples
+qwrite(all_model_overall_colon_precrec_eval, file.path(out_dir, "all_colon_samples_all_models_precrec_eval.rds"))
+qwrite(all_model_overall_colon_auc, file.path(out_dir, "all_colon_samples_all_models_auc_table.tsv"))
+qwrite(all_model_overall_colon_roc, file.path(out_dir, "all_colon_samples_all_models_roc_coordinates.tsv"))
+qwrite(all_model_overall_colon_prc, file.path(out_dir, "all_colon_samples_all_models_prc_coordinates.tsv"))
+
+### all liver samples
+qwrite(all_model_overall_liver_precrec_eval, file.path(out_dir, "all_liver_samples_all_models_precrec_eval.rds"))
+qwrite(all_model_overall_liver_auc, file.path(out_dir, "all_liver_samples_all_models_auc_table.tsv"))
+qwrite(all_model_overall_liver_roc, file.path(out_dir, "all_liver_samples_all_models_roc_coordinates.tsv"))
+qwrite(all_model_overall_liver_prc, file.path(out_dir, "all_liver_samples_all_models_prc_coordinates.tsv"))
 
