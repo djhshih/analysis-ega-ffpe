@@ -1,24 +1,24 @@
-#!/usr/bin/env Rscript
-
-# Import necessary libraries and modules
 library(io)
 library(precrec)
 library(argparser)
 
-# Importing module containing common functions for evaluations
-source("../R/eval.R")
+# TODO split up filteres into modules
+# TODO refactoring in progress
 
+source("../R/eval.R")
 
 # Setup Directories
 
-# Directory for FFPE SNVF outputs
+## specific for each dataset
+
 dataset_id <- "EGAD00001004066"
+
+# Directory for FFPE SNVF inputs
 ffpe_snvf.dir <- sprintf("../ffpe-snvf/%s/somatic_vcf", dataset_id)
 # Directory for the Somatic VCFs
 vcf.dir <- sprintf("../vcf/%s/somatic_vcf", dataset_id)
 # Output directory
 main.outdir <- sprintf("%s/somatic_vcf", dataset_id)
-
 
 
 # Read Annotation Table
@@ -30,6 +30,90 @@ lookup_table$sample_name <- paste0(gsub(" ", "-", lookup_table$title), "_", look
 ffpe_tumoral <- lookup_table[(lookup_table$preservation == "FFPE" & lookup_table$sample_type == "Tumoral"), ]
 frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_table$sample_type == "Tumoral"), ]
 
+#################################
+
+# @param d  data.frame of variant annotation by mobsnvf
+preprocess_mobsnvf <- function(d) {
+	# mobsnvf sets FOBP to NA for variants that are not C>T
+	d <- d[!is.na(d$FOBP), ];
+	# lower score signifies real mutation:  
+	# hence, we flip scores to make higher score signify a real mutation
+	d$score <- -d$FOBP;
+	d <- add_id(d);
+	d
+}
+
+preprocess_vafsnvf <- function(d) {
+	d <- d[!is.na(d$VAFF), ]
+	d$score <- d$VAFF;
+	d <- add_id(d);
+	d
+}
+
+preprocess_sobdetect <- function(d) {
+	# SOBDetector output column explanations:
+	# 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
+	# 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
+	# variants ignored by SOBdetector have score of "."
+	d <- d[!(d$SOB == "."), ]
+	# now, it's safe to convert to numeric
+	d$SOB <- as.numeric(d$SOB)
+	# SOBdetector score = 0 indicates that it is not artifact
+	# variants classified by SOBdetect as "snv" have score of NaN
+	d$SOB <- ifelse(is.nan(d$SOB), 0, d$SOB)
+	### Precaution to remove the any NA Scores if present
+	d <- d[!is.na(d$SOB), ]
+	# in this set the TRUE label indicates real mutation and FALSE indicates artifacts
+	# Hence, scores needs to be adjusted so that higher score represents a real mutation.
+	d$score <- -d$SOB;
+	d <- add_id(d);
+	d
+}
+
+# @param d       data.frame of variant annotation
+# @param truths  data.frame of ground-truth variants
+evaluate_filter <- function(d, truths, name) {
+	d <- annotate_truth(d, truths);
+	eval_obj <- with(d, evalmod(scores = score, labels = truth, modnames = name);
+	list(
+		eval = eval_obj,
+		auc = auc(eval_obj)
+	)
+}
+
+# Remark: evalmod will be replaced with another function in the future!
+
+# higher-order function
+# custom functions specific for each filter: read_f, preprocess_f, evaluate_f
+process_sample <- function(sample_name, read_f, preprocess_f, evaluate_f) {
+	d <- read_f(sample_name);
+	d <- preprocess_f(d);
+	res <- evaluate_f(d);
+	res
+}
+
+# process across all samples
+# THIS IS IMPORTANT PART
+# process mobsnvf filter
+# process vafsnvf filter
+
+# process each sample individually
+
+# for one filter
+for (index in seq_len(nrow(ffpe_tumoral))){
+	dobj <- set_up(index, ...);
+	res <- process_sample(dobj$sample_name);		
+	# write res to file
+	qwrite(...)
+}
+
+# for another filter
+for (index in seq_len(nrow(ffpe_tumoral))){
+	dobj <- set_up(index, ...);
+	res <- process_sample(dobj$sample_name);		
+	# write res to file
+	qwrite(...)
+}
 
 
 # Perform per sample evaluation
@@ -48,54 +132,6 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 
 	message(sprintf("%d. %s", index, sample_name))
 
-	# Read in the FFPE-Filtered output for current sample
-
-	mobsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "mobsnvf", sample_name, sprintf("%s.mobsnvf.snv", sample_name)))
-	# Retain only C>T mutations in mobsnvf output
-	mobsnvf_output <- mobsnvf_output[complete.cases(mobsnvf_output$FOBP), ]
-
-
-	vafsnvf_output <- read.delim(file.path(ffpe_snvf.dir, "vafsnvf", sample_name, sprintf("%s.vafsnvf.snv", sample_name)))
-	vafsnvf_output <- vafsnvf_output[complete.cases(vafsnvf_output$VAFF), ]
-
-	# SOBDetector output column explanations:
-	# 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
-	# 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
-	sobdetector_output <- read.delim(file.path(ffpe_snvf.dir, "sobdetector", sample_name, sprintf("%s.sobdetector.snv", sample_name)))
-	# variants ignored by SOBdetector have score of "."
-	sobdetector_output <- sobdetector_output[!(sobdetector_output$SOB == "."), ]
-	# now, it's safe to convert to numeric
-	sobdetector_output$SOB <- as.numeric(sobdetector_output$SOB)
-	# SOBdetector score = 0 indicates that it is not artifact
-	# variants classified by SOBdetect as "snv" have score of NaN
-	sobdetector_output$SOB <- ifelse(is.nan(sobdetector_output$SOB), 0, sobdetector_output$SOB)
-	### Precaution to remove the any NA Scores if present
-	sobdetector_output <- sobdetector_output[complete.cases(sobdetector_output$SOB), ]
-
-
-	## GATK Orientation Bias Mixture Model outputs
-	gatk_obmm_output <- read_vcf(file.path(vcf.dir, sample_name, sprintf("%s.vcf.gz", sample_name)), columns = c("chrom", "pos", "ref", "alt", "filter"))
-	### GATK Orientation Bias mixture model makes binary classification. This is casted into scores 0 and 1
-	gatk_obmm_output$obmm <- ifelse(grepl("orientation", gatk_obmm_output$filter), 0, 1)
-	gatk_obmm_output <- gatk_obmm_output[complete.cases(gatk_obmm_output$obmm), ]
-
-	# Add common IDs to the outputs
-	mobsnvf_output <- add_id(mobsnvf_output)
-	vafsnvf_output <- add_id(vafsnvf_output)
-	sobdetector_output <- add_id(sobdetector_output)
-	gatk_obmm_output <- add_id(gatk_obmm_output)
-
-
-	# Adjust scores
-	## In this set the TRUE label indicates real mutation and FALSE indicates artifacts
-	## Hence, scores needs to be adjusted so that higher score represents a real mutation.
-	## For our VAFSNVF higher score is signifies real mutation : 
-	## For MOBSNVF and SOBDetector lower score signifies real mutation:  
-	## Hence, we flip scores for MOBSNVF and SOBDetector to make higher score signify a real mutation
-	mobsnvf_output$FOBP <- -mobsnvf_output$FOBP
-	sobdetector_output$SOB <- -sobdetector_output$SOB
-	
-
 	# Construct the Ground Truth SNVs
 	## To do this we make a union set for all the FF samples matched to this FFPE sample
 	## This dataset has matched FFPE and FF from the same patient.
@@ -109,31 +145,44 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 	truths <- snv_union(truth_sample_paths)
 	truths <- add_id(truths)
 
-	## Add truth labels to model names
-	mobsnvf_output <- annotate_truth(mobsnvf_output, truths)
-	vafsnvf_output <- annotate_truth(vafsnvf_output, truths)
-	sobdetector_output <- annotate_truth(sobdetector_output, truths)
-	gatk_obmm_output <- annotate_truth(gatk_obmm_output, truths)
-	
 
-	## Evaluate using precrec
-	mobsnvf_eval <- with(mobsnvf_output, evalmod(scores = FOBP, labels = truth, modnames = "mobsnvf"))
-	vafsnvf_eval <- with(vafsnvf_output, evalmod(scores = VAFF, labels = truth, modnames = "vafsnvf"))
-	sobdetector_eval <- with(sobdetector_output, evalmod(scores = SOB, labels = truth, modnames = "sobdetector"))
+	# Read in the FFPE-Filtered output for current sample
+	mobsnvf_d <- read.delim(file.path(ffpe_snvf.dir, "mobsnvf", sample_name, sprintf("%s.mobsnvf.snv", sample_name)))
+	mobsnvf_d <- preprocess_mobsnvf(mobsnvf_d);
+	mobsnvf_res <- evaluate_filter(mobsnvf_d, truths, "mobsnvf");
+
+	vafsnvf_d <- read.delim(file.path(ffpe_snvf.dir, "vafsnvf", sample_name, sprintf("%s.vafsnvf.snv", sample_name)))
+	vafsnvf_d <- preprocess_vafsnvf(vafsnvf_d);
+	vafsnvf_res <- evaluate_filter(vafsnvf_d, truths, "vafsnvf");
+
+	# SOBDetector output column explanations:
+	# 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
+	# 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
+	sobdetector_d <- read.delim(file.path(ffpe_snvf.dir, "sobdetector", sample_name, sprintf("%s.sobdetector.snv", sample_name)))
+	sobdetector_d <- preprocess_sobdetect(sobdetector_d);
+	sobdetector_res <- evaluate_filter(sobdetector_d, truths, "sobdetector");
+
+
+	# FIXME put into function
+	## GATK Orientation Bias Mixture Model outputs
+	gatk_obmm_output <- read_vcf(file.path(vcf.dir, sample_name, sprintf("%s.vcf.gz", sample_name)), columns = c("chrom", "pos", "ref", "alt", "filter"))
+	### GATK Orientation Bias mixture model makes binary classification. This is casted into scores 0 and 1
+	gatk_obmm_output$obmm <- ifelse(grepl("orientation", gatk_obmm_output$filter), 0, 1)
+	gatk_obmm_output <- gatk_obmm_output[complete.cases(gatk_obmm_output$obmm), ]
 	gatk_obmm_eval <- with(gatk_obmm_output, evalmod(scores = obmm, labels = truth, modnames = "gatk-obmm"))
 
 
+	# Combine all evaluation dataframes into one
 	# Get evaluation dataframe. 
-	## Columns consisits of:
+	## Columns consists of:
 	## x and y coordinates for making ROC and PRC plots,
 	## model name, and plot type (ROC or PRC)
-	mobsnvf_eval_df <- as.data.frame(mobsnvf_eval)
-	vafsnvf_eval_df <- as.data.frame(vafsnvf_eval)
-	sobdetector_eval_df <- as.data.frame(sobdetector_eval)
-	gatk_obmm_eval_df <- as.data.frame(gatk_obmm_eval)
-
-	# Combine all evaluation dataframes into one
-	all_models_eval_df <- rbind(mobsnvf_eval_df, vafsnvf_eval_df, sobdetector_eval_df, gatk_obmm_eval_df)
+	all_models_eval_df <- rbind(
+		as.data.frame(mobsnvf_res$eval),
+		as.data.frame(vafsnvf_res$eval),
+		as.data.frame(sobdetector_res$eval),
+		as.data.frame(gatk_obmm_eval)
+	);
 	all_models_eval_df$dsid <- NULL
 
 	# Stratify ROC PRC coordinates
@@ -141,7 +190,6 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 	all_models_prc <- all_models_eval_df[all_models_eval_df$type == "PRC", ]
 
 	# Get AUC for each model
-	mobsnvf_auc <- auc(mobsnvf_eval)
 	vafsnvf_auc <- auc(vafsnvf_eval)
 	sobdetector_auc <- auc(sobdetector_eval)
 	gatk_obmm_auc <- auc(gatk_obmm_eval)
