@@ -180,8 +180,7 @@ set_up <- function(d, index) {
 
 # process each sample individually
 
-
-# process each sample individually
+## TO DO: save ground truth variants for each sample first to avoid writing during model evaluation
 
 # Evaluate mobsnvf
 message("Evaluating Mobsnvf:")
