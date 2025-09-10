@@ -32,25 +32,58 @@ frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_t
 
 #################################
 
+
+read_snv <- function(sample_name, filter_name) {
+	path <- file.path(ffpe_snvf.dir, filter_name, sample_name, sprintf("%s.mobsnvf.snv", sample_name))
+	read.delim(path)
+}
+
+# Construct the Ground Truth SNVs
+## To do this we make a union set for all the FF samples matched to this FFPE sample
+## This dataset has matched FFPE and FF from the same patient.
+## All samples within the same tissue type are matched
+## Hence, we select the frozen variants from the same tissue type as the FFPE sample
+## @params d		data.frame containing sample annotation for frozen samples
+## @params tissue_type		string describing the type of tissue		
+construct_ground_truth <- function(d, tissue){
+
+	d <- d[d$tissue_type == tissue, ]
+
+	## Obtain the sample names for the frozen samples within the same tissue
+	truth_samples <- d$sample_name
+	truth_sample_paths <- file.path(vcf.dir, truth_samples, sprintf("%s.vcf.gz", truth_samples))
+	truths <- snv_union(truth_sample_paths)
+	truths <- add_id(truths)
+	truths
+}
+
 # @param d  data.frame of variant annotation by mobsnvf
-preprocess_mobsnvf <- function(d) {
+# @param truths  data.frame of ground-truth variants
+preprocess_mobsnvf <- function(d, truths) {
 	# mobsnvf sets FOBP to NA for variants that are not C>T
 	d <- d[!is.na(d$FOBP), ];
 	# lower score signifies real mutation:  
 	# hence, we flip scores to make higher score signify a real mutation
 	d$score <- -d$FOBP;
 	d <- add_id(d);
+	d <- annotate_truth(d, truths)
 	d
 }
 
-preprocess_vafsnvf <- function(d) {
+# @param d  data.frame of variant annotation by vafsnvf
+# @param truths  data.frame of ground-truth variants
+preprocess_vafsnvf <- function(d, truths) {
 	d <- d[!is.na(d$VAFF), ]
+	# vafsnvf sets VAFF to NA for variants that are not C>T
 	d$score <- d$VAFF;
 	d <- add_id(d);
+	d <- annotate_truth(d, truths)
 	d
 }
 
-preprocess_sobdetect <- function(d) {
+# @param d  data.frame of variant annotation by sobdetector
+# @param truths  data.frame of ground-truth variants
+preprocess_sobdetect <- function(d, truths) {
 	# SOBDetector output column explanations:
 	# 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
 	# 		SOB: This is the strand oreintation bias score column which ranges from 0 and 1. Exception values: "." or NaN. 
@@ -66,18 +99,49 @@ preprocess_sobdetect <- function(d) {
 	# in this set the TRUE label indicates real mutation and FALSE indicates artifacts
 	# Hence, scores needs to be adjusted so that higher score represents a real mutation.
 	d$score <- -d$SOB;
+	# Keep only C>T variants
+	d <- ct_filter(d)
 	d <- add_id(d);
+	d <- annotate_truth(d, truths)
 	d
 }
 
-# @param d       data.frame of variant annotation
+# @param d  data.frame of variant annotation by GATK Orientation Bias Mixture Model
 # @param truths  data.frame of ground-truth variants
-evaluate_filter <- function(d, truths, name) {
-	d <- annotate_truth(d, truths);
-	eval_obj <- with(d, evalmod(scores = score, labels = truth, modnames = name);
+preprocess_gatk_obmm <- function(d, truths){
+	### GATK Orientation Bias mixture model makes binary classification. This is casted into scores 0 and 1
+	d$score <- ifelse(grepl("orientation", d$filter), 0, 1)
+	d <- d[!is.na(d$score), ]
+	# Keep only C>T variants
+	d <- ct_filter(d)
+	d <- add_id(d)
+	d <- annotate_truth(d, truths)
+	d
+}
+
+
+# @param d       data.frame of variant annotation
+evaluate_filter <- function(d, name) {;
+	eval_obj <- with(d, evalmod(scores = score, labels = truth, modnames = name));
+
+	eval_auc <- auc(eval_obj)
+	eval_auc$dsids <- NULL
+
+	# Collect ROC PRC coordinates
+	## Columns -> (x, y, modname, type):
+	## x and y are coordinates for making ROC and PRC plots,
+	## plot type values are ROC or PRC
+	roc_prc <- as.data.frame(eval_obj)
+	roc_prc$dsid <- NULL
+	# Stratify ROC PRC
+	roc <- roc_prc[roc_prc$type == "ROC", ]
+	prc <- roc_prc[roc_prc$type == "PRC", ]
+
 	list(
 		eval = eval_obj,
-		auc = auc(eval_obj)
+		auc = eval_auc,
+		roc = roc,
+		prc = prc
 	)
 }
 
@@ -85,12 +149,29 @@ evaluate_filter <- function(d, truths, name) {
 
 # higher-order function
 # custom functions specific for each filter: read_f, preprocess_f, evaluate_f
+# @return list consisting of data.frame "d" and evaluation result object "res".
 process_sample <- function(sample_name, read_f, preprocess_f, evaluate_f) {
 	d <- read_f(sample_name);
 	d <- preprocess_f(d);
 	res <- evaluate_f(d);
-	res
+	
+	list(
+		d = d,
+		res = res
+	)
 }
+
+# @params d		data.frame containing sample annotation
+# @params index		the index of the sample to process
+set_up <- function(d, index) {
+	list(
+		sample_name = d[index, "sample_name"],
+		tissue = d[index, "tissue_type"]
+	)
+}
+
+
+## Create a write res function
 
 # process across all samples
 # THIS IS IMPORTANT PART
@@ -98,6 +179,49 @@ process_sample <- function(sample_name, read_f, preprocess_f, evaluate_f) {
 # process vafsnvf filter
 
 # process each sample individually
+
+
+# process each sample individually
+
+# Evaluate mobsnvf
+message("Evaluating Mobsnvf:")
+for (index in seq_len(nrow(ffpe_tumoral))){
+	
+	sample_name <- ffpe_tumoral[index, "sample_name"]
+	tissue <- ffpe_tumoral[index, "tissue_type"]
+	message(sprintf("	%s", sample_name))
+	
+	## Obtain ground truth for this sample
+	truths <- construct_ground_truth(frozen_tumoral, tissue)
+	
+	mobsnvf_d <- read.delim(file.path(ffpe_snvf.dir, "mobsnvf", sample_name, sprintf("%s.mobsnvf.snv", sample_name)))
+	mobsnvf_d <- preprocess_mobsnvf(mobsnvf_d, truths);
+	mobsnvf_res <- evaluate_filter(mobsnvf_d, "mobsnvf");
+
+
+	# Saving the variant set with scores and ground truth labels for each sample
+	out_dir <- file.path(main.outdir, "model-scores_truths", sample_name)
+	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+	qwrite(mobsnvf_d, file.path(out_dir, sprintf("%s_mobsnvf-scores_truths.tsv", sample_name)))
+
+
+	# Create an output directory for saving the ground truth for each sample
+	out_dir <- file.path(main.outdir, "ground_truth", sample_name)
+	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+	qwrite(truths, file.path(out_dir, sprintf("%s_ground_truth_variants.tsv", sample_name)))
+
+
+	# Create output directory for roc prc and auc evaluation
+	out_dir <- file.path(main.outdir, "roc-prc-auc", "precrec", sample_name)
+	dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+	qwrite(mobsnvf_res$eval, file.path(out_dir, sprintf("%s_precrec_eval.rds", sample_name)))
+	qwrite(mobsnvf_res$auc, file.path(out_dir, sprintf("%s_auc_table.tsv", sample_name)))
+	qwrite(mobsnvf_res$roc, file.path(out_dir, sprintf("%s_roc_coordinates.tsv", sample_name)))
+	qwrite(mobsnvf_res$prc, file.path(out_dir, sprintf("%s_prc_coordinates.tsv", sample_name)))
+
+}
+
 
 # for one filter
 for (index in seq_len(nrow(ffpe_tumoral))){
