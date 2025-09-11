@@ -35,38 +35,34 @@ frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_t
 
 #######################################
 
-# Evaluate sobdetector
-## Per Sample
-## Each sample is evaluated first due to the necessity of independently annotating the scores with ground truth
-message("Evaluating sobdetector:")
-model_name <- "sobdetector"
+# Evaluate gatk_obmm
+message("Evaluating gatk_obmm:")
+model_name <- "gatk_obmm"
 for (index in seq_len(nrow(ffpe_tumoral))){
 	
 	metadata <- set_up(ffpe_tumoral, index)
 	message(sprintf("	%s", metadata$sample_name))
 	
-	sobdetector_processed <- process_sample(
-		read_snv,
+	gatk_obmm_processed <- process_sample(
+		read_gatk_snv,
 		construct_ground_truth,
-		preprocess_sobdetector,
+		preprocess_gatk_obmm,
 		evaluate_filter,
 		sample_name = metadata$sample_name,
 		tissue = metadata$tissue,
 		filter_name = model_name,
-		snvf_dir = ffpe_snvf.dir,
+		snvf_dir = vcf.dir,
 		gt_vcf_dir = vcf.dir,
 		gt_annot_d = frozen_tumoral
 	)
 
-	write_sample_eval(sobdetector_processed, main.outdir, metadata$sample_name, model_name)
-
+	write_sample_eval(gatk_obmm_processed, main.outdir, metadata$sample_name, model_name)
 }
-
 
 # Overall Evaluation
 ## The scores annotated with ground truth is combined into a single dataframe
 message("	performing Evaluation across all samples")
-sobdetector_all_score_truth <- do.call(
+gatk_obmm_all_score_truth <- do.call(
 	rbind,
 	lapply(seq_len(nrow(ffpe_tumoral)), function(i) {
 		meta <- set_up(ffpe_tumoral, i)
@@ -79,21 +75,21 @@ sobdetector_all_score_truth <- do.call(
 
 
 # Evaluate across all samples
-sobdetector_overall_res <- evaluate_filter(sobdetector_all_score_truth, model_name)
-write_overall_eval(sobdetector_all_score_truth, sobdetector_overall_res, score_truth_outdir, eval_outdir, "all_samples", model_name)
+gatk_obmm_overall_res <- evaluate_filter(gatk_obmm_all_score_truth, model_name)
+write_overall_eval(gatk_obmm_all_score_truth, gatk_obmm_overall_res, score_truth_outdir, eval_outdir, "all_samples", model_name)
 
 
 # Evaluate across colon samples
 message("	performing Evaluation across all colon samples")
-sobdetector_colon_score_truth <- sobdetector_all_score_truth[grepl("Colon", sobdetector_all_score_truth$sample_name), ]
-sobdetector_colon_res <- evaluate_filter(sobdetector_colon_score_truth, model_name)
-write_overall_eval(sobdetector_colon_score_truth, sobdetector_colon_res, score_truth_outdir, eval_outdir, "colon_samples", model_name)
+gatk_obmm_colon_score_truth <- gatk_obmm_all_score_truth[grepl("Colon", gatk_obmm_all_score_truth$sample_name), ]
+gatk_obmm_colon_res <- evaluate_filter(gatk_obmm_colon_score_truth, model_name)
+write_overall_eval(gatk_obmm_colon_score_truth, gatk_obmm_colon_res, score_truth_outdir, eval_outdir, "colon_samples", model_name)
 
 
 ## Evaluate across liver samples
 message("	performing Evaluation across all liver samples")
-sobdetector_liver_score_truth <- sobdetector_all_score_truth[grepl("Liver", sobdetector_all_score_truth$sample_name), ]
-sobdetector_liver_res <- evaluate_filter(sobdetector_liver_score_truth, model_name)
-write_overall_eval(sobdetector_liver_score_truth, sobdetector_liver_res, score_truth_outdir, eval_outdir, "liver_samples", model_name)
+gatk_obmm_liver_score_truth <- gatk_obmm_all_score_truth[grepl("Liver", gatk_obmm_all_score_truth$sample_name), ]
+gatk_obmm_liver_res <- evaluate_filter(gatk_obmm_liver_score_truth, model_name)
+write_overall_eval(gatk_obmm_liver_score_truth, gatk_obmm_liver_res, score_truth_outdir, eval_outdir, "liver_samples", model_name)
 
 message("Done.")

@@ -66,7 +66,6 @@ for (index in seq_len(nrow(ffpe_tumoral))){
 # Overall Evaluation
 ## The scores annotated with ground truth is combined into a single dataframe
 message("	performing Evaluation across all samples")
-model_name <- model_name
 mobsnvf_all_score_truth <- do.call(
 	rbind,
 	lapply(seq_len(nrow(ffpe_tumoral)), function(i) {
