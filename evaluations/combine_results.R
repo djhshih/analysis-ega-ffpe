@@ -2,14 +2,14 @@
 library(io)
 
 ## Dataset specific
-eval_path = "EGAD00001004066/somatic_vcf/roc-prc-auc/precrec"
+eval_dir = "EGAD00001004066/somatic_vcf/roc-prc-auc/precrec"
 
 ## List name of models that were evaluated. 
 models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm")
 
 ## Combine the AUC table for each sample and overall eval i.e all sample, liver samples, colon samples
 message("Combining AUCs")
-auc_paths <- list.files(eval_path, pattern = "_auc_table.tsv", recursive = TRUE, full.names = TRUE)
+auc_paths <- list.files(eval_dir, pattern = "_auc_table.tsv", recursive = TRUE, full.names = TRUE)
 
 auc <- do.call(
 	rbind,
@@ -21,11 +21,11 @@ auc <- do.call(
 
 auc <- auc[order(auc$sample_name, auc$model),]
 
-qwrite(auc, "combined_auc_table.tsv")
+qwrite(auc, file.path(eval_dir, "combined_auc_table.tsv"))
 
 
 ## List samples based on their path
-roc_path <- list.files(eval_path, pattern = "_roc_coordinates.tsv", recursive = TRUE, full.names = TRUE)
+roc_path <- list.files(eval_dir, pattern = "_roc_coordinates.tsv", recursive = TRUE, full.names = TRUE)
 to_remove <- c(paste("", models, sep = "_"), '_roc_coordinates.tsv','_prc_coordinates.tsv')
 
 samples <- unique(sapply(
@@ -45,7 +45,7 @@ message("Combining ROC and PRC results for the evaluated model within each sampl
 for (sample in samples){
 
 	message(sample)
-	paths <- list.files("EGAD00001004066/somatic_vcf/roc-prc-auc/precrec", pattern = sample, recursive = TRUE, full.names = TRUE)
+	paths <- list.files(eval_dir, pattern = sample, recursive = TRUE, full.names = TRUE)
 
 	## Combine ROC
 	roc_paths <- paths[grepl("roc_coordinates.tsv", paths)]
