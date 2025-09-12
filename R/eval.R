@@ -3,22 +3,16 @@
 # This script contains functions for evaluation
 ## This is a work in progress. The functions still needs to be improved for generalizability across multiple projects and datasets
 
-### Load necessary libraries
 library(io)
 library(precrec)
-library(jsonlite)
-library(argparser)
-
 
 #### A list of Chromosomes 1-22, X and Y
 standard_chromosomes <- paste0("chr", c(1:22, "X", "Y"))
 
 ## Read a VCF File
-## Arguments:
-## 		path: VCF path
-##		columns (optional): column names to keep in lowercase
-## Returns:
-## 		dataframe containing vcf columns
+## @param path string | VCF path
+## @param columns vector | (optional) column names to keep in lowercase
+## @return  dataframe | containing vcf columns
 read_vcf <- function(path, columns = NULL) {
 	all_lines <- readLines(path)
 	filtered_lines <- grep("^##", all_lines, value = TRUE, invert = TRUE)
@@ -39,16 +33,20 @@ read_vcf <- function(path, columns = NULL) {
 	vcf
 }
 
-
+# Filter C>T variants
+# @params d	data.frame of variants
+# @params ref_col	string containing Reference allele column name
+# @params alt_col	string containing Alternate allele column name
+# @returns dataframe with only C:G>T:A mutations
 ct_filter <- function(d, ref_col = "ref", alt_col = "alt") {
 	ct_mask = ((d[["ref"]] == "C") & (d[["alt"]] == "T")) | ((d[["ref"]] == "G") & (d[["alt"]] == "A"))
-	
 	d[ct_mask,]
 }
 
 
 # Create variant ID based on chrom, pos, ref, and alt
 # @param d  data.frame of variants
+# @return data.frame of variant with ID annotation
 add_id <- function(d) {
 	d$snv <- with(d, paste(chrom, pos, ref, alt, sep="_"))
 	d
@@ -59,39 +57,36 @@ add_id <- function(d) {
 # variant call set
 # @param  d  data.frame of called variants to be annotated
 # @param  truth  data.frame of ground truth variants
+# @returns data.frame with annotated ground truth label
 annotate_truth <- function(d, truth) {
 	d$truth <- d$snv %in% truth$snv;
 	d
 }
 
-#### Function to filter C>T and G>A mutations
-ct_only <- function(df) {
-  df[(df$ref == "C" & df$alt == "T") | (df$ref == "G" & df$alt == "A"), ]
-}
-
-
 #### Create a set of SNVs across multiple samples
-snv_union <- function(matched_undamaged_sample_paths) {
+# @params paths list of strings with vcf paths
+# @return data.frame of variant union set
+snv_union <- function(paths) {
 
-	truths <- data.frame()
+	combined <- data.frame()
 
-	for (truth_sample_path in matched_undamaged_sample_paths){
+	for (path in paths){
 		# Read the VCF data
-		truth_sample_full <- qread(truth_sample_path, type = "vcf")
+		sample <- read_vcf(path, columns = c("chrom", "pos", "ref", "alt"))
 		# Select only the required columns using base R
-		truth_sample <- truth_sample_full[, c("chrom", "pos", "ref", "alt")]
-		truths <- rbind(truths, truth_sample)
+		combined <- rbind(combined, sample)
 	}
 
-	# Use base R's `unique` for data frames, which is equivalent to dplyr's `distinct`
-	truths <- unique(truths)
+	# only keep one instance of each variant
+	union <- unique(combined)
 
-	return(truths)
+	return(union)
 }
 
 
 #### Function to classify variants based on a set of Q values and a False Positive cutoff threshold
-##### Returns a boolean vector
+## @params q vector | vector of FDR adjusted p-values i.e. q-values
+## @returns a boolean vector
 adaptive_fdr_cut <- function(q, fp.cut) {
 	n <- length(q);
 	# adaptive threshold chosen to expect less than one false positive
@@ -111,6 +106,10 @@ adaptive_fdr_cut <- function(q, fp.cut) {
 
 
 #### Function to label the models prediction based on the adaptive_fdr_cut function
+# @params df (data.frame) | with model's scores
+# @params score (string) | column name of score column
+# @params fp-cut (numeric) | the false positive cut off value. Default = 0.5
+# @return data.frame of model's score with annotated prediction based on fp-cut
 fdr_cut_pred <- function(df, score, fp.cut=0.5) {
 	
 	##### Split C>T and non C>T mutations into two dataframes using base R
@@ -131,13 +130,15 @@ fdr_cut_pred <- function(df, score, fp.cut=0.5) {
 
 	##### Combine the C>T and non C>T dataframes back into one single dataframe
 	df <- rbind(df.ct, df.nct)
-	# Arrange the combined dataframe using base R's `order`
+	# Sort
 	df <- df[order(df$chrom, df$pos), ]
 	df
 }
 
 
 #### Calculate True/False Positives/Negatives from prediction and ground truth
+# @param data.frame with models prediction and ground truth columns
+# @return list with numeric FP, TP, FN, and TP
 calc.confusion.matrix <- function(df, pred_col = "pred", truth_col = "truth") {
 	TP <- nrow(df[df[[pred_col]] & df[[truth_col]], ])
 	FP <- nrow(df[df[[pred_col]] & !df[[truth_col]], ])
@@ -154,7 +155,9 @@ calc.confusion.matrix <- function(df, pred_col = "pred", truth_col = "truth") {
 
 
 #### Calculate evaluation metrics based on confusion matrix
-calc.eval.metrics <- function(df, pred_col = "pred", truth_col = "truth") {
+# @param data.frame with models prediction and ground truth columns
+# @return list with sensitivity, specificity, precision, and recall
+calc_eval_metrics <- function(df, pred_col = "pred", truth_col = "truth") {
 
 	confusion_matrix <- calc.confusion.matrix(df, pred_col, truth_col)
 
@@ -171,11 +174,11 @@ calc.eval.metrics <- function(df, pred_col = "pred", truth_col = "truth") {
 	)
 }
 
-
+## FIX ME remove after refactoring is complete
 ## Function to create multimodel AUROC and AUPRC table based on a dataframe containing ROC and PRC
 ## Column names for ROC df must be fpr and tpr
 ## Column names for ROC df must be precision and recall
-get.multimodel.auroc.auprc <- function(multimodel_roc_df,  multimodel_prc_df, sample_name, model_names = NULL, model_col = "model") {
+get_multimodel_auroc_auprc <- function(multimodel_roc_df,  multimodel_prc_df, sample_name, model_names = NULL, model_col = "model") {
 
 	if(is.null(model_names)) {
 		model_names <- unique(multimodel_roc_df$model)
@@ -234,21 +237,23 @@ read_gatk_snv <- function(sample_name, filter_name, vcf.dir, read_vcf_f = read_v
 ## All samples within the same tissue type are matched
 ## Hence, we select the frozen variants from the same tissue type as the FFPE sample
 ## @params annot_d		data.frame containing sample annotation for frozen samples
-## @params tissue_type		string describing the type of tissue		
+## @params tissue_type		string describing the type of tissue
+## @return data.frame of ground truth variants
 construct_ground_truth <- function(annot_d, tissue, vcf.dir){
 
 	annot_d <- annot_d[annot_d$tissue_type == tissue, ]
 
 	## Obtain the sample names for the frozen samples within the same tissue
-	truth_samples <- annot_d$sample_name
-	truth_sample_paths <- file.path(vcf.dir, truth_samples, sprintf("%s.vcf.gz", truth_samples))
-	truths <- snv_union(truth_sample_paths)
+	samples <- annot_d$sample_name
+	paths <- file.path(vcf.dir, samples, sprintf("%s.vcf.gz", samples))
+	truths <- snv_union(paths)
 	truths <- add_id(truths)
 	truths
 }
 
 # @param d  data.frame of variant annotation by mobsnvf
 # @param truths  data.frame of ground-truth variants
+# @return data.frame of variants with id and ground truth annotation
 preprocess_mobsnvf <- function(d, truths) {
 	# mobsnvf sets FOBP to NA for variants that are not C>T
 	d <- d[!is.na(d$FOBP), ];
@@ -262,6 +267,7 @@ preprocess_mobsnvf <- function(d, truths) {
 
 # @param d  data.frame of variant annotation by vafsnvf
 # @param truths  data.frame of ground-truth variants
+# @return data.frame of variants with id and ground truth annotation
 preprocess_vafsnvf <- function(d, truths) {
 	d <- d[!is.na(d$VAFF), ]
 	# vafsnvf sets VAFF to NA for variants that are not C>T
@@ -273,6 +279,7 @@ preprocess_vafsnvf <- function(d, truths) {
 
 # @param d  data.frame of variant annotation by sobdetector
 # @param truths  data.frame of ground-truth variants
+# @return data.frame of variants with id and ground truth annotation
 preprocess_sobdetector <- function(d, truths) {
 	# SOBDetector output column explanations:
 	# 		artiStatus: Binary classification made by SOBDetector. Values are "snv" or "artifact"
@@ -298,6 +305,7 @@ preprocess_sobdetector <- function(d, truths) {
 
 # @param d  data.frame of variant annotation by GATK Orientation Bias Mixture Model
 # @param truths  data.frame of ground-truth variants
+# @return data.frame of variants with id and ground truth annotation
 preprocess_gatk_obmm <- function(d, truths){
 	### GATK Orientation Bias mixture model makes binary classification. This is casted into scores 0 and 1
 	d$score <- ifelse(grepl("orientation", d$filter), 0, 1)
@@ -310,23 +318,34 @@ preprocess_gatk_obmm <- function(d, truths){
 }
 
 
+## Function to evaluate an FFPE filter's performance
 # @param d       data.frame of variant annotation
-evaluate_filter <- function(d, name) {;
-	eval_obj <- with(d, evalmod(scores = score, labels = truth, modnames = name));
+# @param model_names	string containing name to model to be evaluated
+# @param sample_name 	string containing sample name being evaluated
+# @return list with components:
+# 	- eval	precrec eval object
+#	- auc	data.frame containing AUROC and AUPRC of each model
+#	- roc	data.frame containing ROC curve coordinated
+#	- prc	data.frame containing PRC curve coordinated
+evaluate_filter <- function(d, model_name, sample_name) {;
+	eval_obj <- with(d, evalmod(scores = score, labels = truth, modnames = model_name));
 
 	# Format AUC table
 	eval_auc <- auc(eval_obj)
 	eval_auc$dsids <- NULL
 	eval_auc <- reshape(eval_auc, idvar = "modnames", timevar = "curvetypes", direction = "wide")
 	colnames(eval_auc) <- c("model", "auroc", "auprc")
+	eval_auc$sample_name <- sample_name
+	eval_auc <- eval_auc[, c("sample_name", "model", "auroc", "auprc")]
 
 	# Collect ROC PRC coordinates
 	## Columns -> (x, y, modname, type):
 	## x and y are coordinates for making ROC and PRC plots,
 	## plot type values are ROC or PRC
 	roc_prc <- as.data.frame(eval_obj)
-	roc_prc$dsid <- NULL
+	roc_prc$sample_name <- sample_name
 	colnames(roc_prc)[colnames(roc_prc) == "modname"] <- "model"
+	roc_prc <- roc_prc[, c("sample_name", "model", "type", "x", "y")]
 	# Stratify ROC PRC
 	roc <- roc_prc[roc_prc$type == "ROC", ]
 	prc <- roc_prc[roc_prc$type == "PRC", ]
@@ -339,16 +358,17 @@ evaluate_filter <- function(d, name) {;
 	)
 }
 
+
 # Remark: evalmod will be replaced with another function in the future!
 
-
 # Function to obtain necessary metadata
-# @params d		data.frame containing sample annotation
+# @params annot_d		data.frame containing sample annotation
 # @params index		the index of the sample to process
-set_up <- function(d, index) {
+# @return list with "sample_name" and "tissue" type to be evaluated as string
+set_up <- function(annot_d, index) {
 	list(
-		sample_name = d[index, "sample_name"],
-		tissue = d[index, "tissue_type"]
+		sample_name = annot_d[index, "sample_name"],
+		tissue = annot_d[index, "tissue_type"]
 	)
 }
 
@@ -383,7 +403,7 @@ process_sample <- function(read_f, truth_f, preprocess_f, evaluate_f, sample_nam
 	d <- read_f(sample_name, filter_name, snvf_dir);
 	gt <- truth_f(gt_annot_d, tissue, gt_vcf_dir)
 	d <- preprocess_f(d, gt);
-	res <- evaluate_f(d, filter_name);
+	res <- evaluate_f(d, filter_name, sample_name);
 	
 	list(
 		d = d,
