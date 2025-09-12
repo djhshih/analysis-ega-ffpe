@@ -25,8 +25,6 @@ eval_outdir <- sprintf("%s/somatic_vcf/roc-prc-auc/precrec", dataset_id)
 
 # Read Annotation Table
 lookup_table <- read.delim(sprintf("../annot/%s/sample_annotations.tsv", dataset_id))
-# create a sample name column which are the file names for the samples
-lookup_table$sample_name <- paste0(gsub(" ", "-", lookup_table$title), "_", lookup_table$sample_alias)
 
 # Stratify annotation table based on FFPE and FF Somatic Variants
 ffpe_tumoral <- lookup_table[(lookup_table$preservation == "FFPE" & lookup_table$sample_type == "Tumoral"), ]
@@ -79,21 +77,21 @@ vafsnvf_all_score_truth <- do.call(
 
 
 # Evaluate across all samples
-vafsnvf_overall_res <- evaluate_filter(vafsnvf_all_score_truth, model_name)
-write_overall_eval(vafsnvf_all_score_truth, vafsnvf_overall_res, score_truth_outdir, eval_outdir, "all_samples", model_name)
+vafsnvf_overall_res <- evaluate_filter(vafsnvf_all_score_truth, model_name, "all-samples")
+write_overall_eval(vafsnvf_all_score_truth, vafsnvf_overall_res, score_truth_outdir, eval_outdir, "all-samples", model_name)
 
 
 # Evaluate across colon samples
 message("	performing Evaluation across all colon samples")
 vafsnvf_colon_score_truth <- vafsnvf_all_score_truth[grepl("Colon", vafsnvf_all_score_truth$sample_name), ]
-vafsnvf_colon_res <- evaluate_filter(vafsnvf_colon_score_truth, model_name)
-write_overall_eval(vafsnvf_colon_score_truth, vafsnvf_colon_res, score_truth_outdir, eval_outdir, "colon_samples", model_name)
+vafsnvf_colon_res <- evaluate_filter(vafsnvf_colon_score_truth, model_name, "all-colon-samples")
+write_overall_eval(vafsnvf_colon_score_truth, vafsnvf_colon_res, score_truth_outdir, eval_outdir, "all-colon-samples", model_name)
 
 
 ## Evaluate across liver samples
 message("	performing Evaluation across all liver samples")
 vafsnvf_liver_score_truth <- vafsnvf_all_score_truth[grepl("Liver", vafsnvf_all_score_truth$sample_name), ]
-vafsnvf_liver_res <- evaluate_filter(vafsnvf_liver_score_truth, model_name)
-write_overall_eval(vafsnvf_liver_score_truth, vafsnvf_liver_res, score_truth_outdir, eval_outdir, "liver_samples", model_name)
+vafsnvf_liver_res <- evaluate_filter(vafsnvf_liver_score_truth, model_name, "all-liver-samples")
+write_overall_eval(vafsnvf_liver_score_truth, vafsnvf_liver_res, score_truth_outdir, eval_outdir, "all-liver-samples", model_name)
 
 message("Done.")
