@@ -4,7 +4,7 @@ import pandas as pd
 
 target_dir_root = "fq"
 
-fastq_annotation = pd.read_csv("../annot/fastq_annotations.tsv", sep="\t")
+fastq_annotation = pd.read_csv("../../../annot/EGAD00001004066/sample_annotations.tsv", sep="\t")
 # fastq_annotation
 
 fastq_paths = glob.glob("fq_old/*/*fastq.gz")

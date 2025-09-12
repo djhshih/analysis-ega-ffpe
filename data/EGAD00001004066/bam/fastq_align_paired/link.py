@@ -7,7 +7,7 @@ bam_paths = glob.glob("cromwell-executions/fastq_align_paired/*/call-bam_sort_co
 bai_paths = glob.glob("cromwell-executions/fastq_align_paired/*/call-bam_sort_coord/execution/*.bai")
 bam_bai_paths = sorted(bam_paths + bai_paths)
 
-target_root = "../../../bam/EGAD00001004066"
+target_root = ".."
 
 
 

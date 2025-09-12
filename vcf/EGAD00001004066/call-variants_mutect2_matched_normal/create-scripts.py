@@ -6,7 +6,7 @@ import polars as pl
 outdir = "per_sample_scripts"
 os.makedirs(outdir, exist_ok=True)
 
-tumor_bam_paths = [path for path in glob.glob("../../../bam/EGAD00001004066/*/*.bam") if "Tumoral" in path]
+tumor_bam_paths = [path for path in glob.glob("../../../data/EGAD00001004066/bam*/*.bam") if "Tumoral" in path]
 
 template_script = "joint_call.template.sh"
 
@@ -17,7 +17,7 @@ for path in tumor_bam_paths:
     
     tissue = path.split("/")[-2].split("-")[1]
     
-    normal_bam_paths = [path for path in glob.glob("../../../bam/EGAD00001004066/*/*.bam") if (("Normal" in path) & (f"{tissue}" in path) & ("Frozen" in path))]
+    normal_bam_paths = [path for path in glob.glob("../../../data/EGAD00001004066/bam*/*.bam") if (("Normal" in path) & (f"{tissue}" in path) & ("Frozen" in path))]
     
     normals = "\n\t".join(normal_bam_paths)
     

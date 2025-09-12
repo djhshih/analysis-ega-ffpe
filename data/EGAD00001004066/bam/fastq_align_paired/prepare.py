@@ -9,12 +9,12 @@ import pandas as pd
 # ---
 
 # absolute path is required in the json input files for WDL
-ref_root = os.path.abspath('../../../data/ref')
+ref_root = os.path.abspath('../../ref')
 ref_fname = 'Homo_sapiens_assembly38.fasta'
 
-infname = '../../../annot/EGAD00001004066/fastq_annotations.tsv'
-rg_root = os.path.abspath('../../../data/EGAD00001004066/rg/rg')
-fq_root = os.path.abspath('../../../data/EGAD00001004066/fq')
+infname = '../../../../annot/EGAD00001004066/fastq_annotations.tsv'
+rg_root = os.path.abspath('../..rg/rg')
+fq_root = os.path.abspath('../../fq')
 out_dir = 'inputs'
 
 
