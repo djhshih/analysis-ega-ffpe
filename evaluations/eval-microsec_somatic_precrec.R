@@ -33,40 +33,46 @@ frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_t
 
 #######################################
 
-# Evaluate gatk_obmm
+# Evaluate microsec
+## Per Sample
+## Each sample is evaluated first due to the necessity of independently annotating the scores with ground truth
+
+## Workflow:
 # The SNVs with the score annotations are first read
 # Then the ground truth is constructed by reading SNVs from the match FF sample. 
 # An SNV union is made from multiple FF samples if they exist
 # The truths are annotated via intersection of the FF SNVs and the FFPE SNVs
 # Evaluation is then carried out using precrec
 # The per sample evaluations result (AUC, ROC coordinates and PRC coordinates) and the SNV score truth annotation table is then saved
-message("Evaluating gatk-obmm:")
-model_name <- "gatk-obmm"
+message("Evaluating microsec:")
+model_name <- "microsec"
 for (index in seq_len(nrow(ffpe_tumoral))){
 	
 	metadata <- set_up(ffpe_tumoral, index)
 	message(sprintf("	%s", metadata$sample_name))
 	
-	gatk_obmm_processed <- process_sample(
-		read_gatk_snv,
+	microsec_processed <- process_sample(
+		read_microsec_snv,
 		construct_ground_truth,
-		preprocess_gatk_obmm,
+		preprocess_microsec,
 		evaluate_filter,
 		sample_name = metadata$sample_name,
 		tissue = metadata$tissue,
 		filter_name = model_name,
-		snvf_dir = vcf.dir,
+		snvf_dir = ffpe_snvf.dir,
 		gt_vcf_dir = vcf.dir,
 		gt_annot_d = frozen_tumoral
 	)
 
-	write_sample_eval(gatk_obmm_processed, main.outdir, metadata$sample_name, model_name)
+	write_sample_eval(microsec_processed, main.outdir, metadata$sample_name, model_name)
+
 }
+
 
 # Overall Evaluation
 ## The scores annotated with ground truth is combined into a single dataframe
 message("	performing Evaluation across all samples")
-gatk_obmm_all_score_truth <- do.call(
+microsec_all_score_truth <- do.call(
 	rbind,
 	lapply(seq_len(nrow(ffpe_tumoral)), function(i) {
 		meta <- set_up(ffpe_tumoral, i)
@@ -79,21 +85,21 @@ gatk_obmm_all_score_truth <- do.call(
 
 
 # Evaluate across all samples
-gatk_obmm_overall_res <- evaluate_filter(gatk_obmm_all_score_truth, model_name, "all-samples")
-write_overall_eval(gatk_obmm_all_score_truth, gatk_obmm_overall_res, score_truth_outdir, eval_outdir, "all-samples", model_name)
+microsec_overall_res <- evaluate_filter(microsec_all_score_truth, model_name, "all-samples")
+write_overall_eval(microsec_all_score_truth, microsec_overall_res, score_truth_outdir, eval_outdir, "all-samples", model_name)
 
 
 # Evaluate across colon samples
 message("	performing Evaluation across all colon samples")
-gatk_obmm_colon_score_truth <- gatk_obmm_all_score_truth[grepl("Colon", gatk_obmm_all_score_truth$sample_name), ]
-gatk_obmm_colon_res <- evaluate_filter(gatk_obmm_colon_score_truth, model_name, "all-colon-samples")
-write_overall_eval(gatk_obmm_colon_score_truth, gatk_obmm_colon_res, score_truth_outdir, eval_outdir, "all-colon-samples", model_name)
+microsec_colon_score_truth <- microsec_all_score_truth[grepl("Colon", microsec_all_score_truth$sample_name), ]
+microsec_colon_res <- evaluate_filter(microsec_colon_score_truth, model_name, "all-colon-samples")
+write_overall_eval(microsec_colon_score_truth, microsec_colon_res, score_truth_outdir, eval_outdir, "all-colon-samples", model_name)
 
 
 ## Evaluate across liver samples
 message("	performing Evaluation across all liver samples")
-gatk_obmm_liver_score_truth <- gatk_obmm_all_score_truth[grepl("Liver", gatk_obmm_all_score_truth$sample_name), ]
-gatk_obmm_liver_res <- evaluate_filter(gatk_obmm_liver_score_truth, model_name, "all-liver-samples")
-write_overall_eval(gatk_obmm_liver_score_truth, gatk_obmm_liver_res, score_truth_outdir, eval_outdir, "all-liver-samples", model_name)
+microsec_liver_score_truth <- microsec_all_score_truth[grepl("Liver", microsec_all_score_truth$sample_name), ]
+microsec_liver_res <- evaluate_filter(microsec_liver_score_truth, model_name, "all-liver-samples")
+write_overall_eval(microsec_liver_score_truth, microsec_liver_res, score_truth_outdir, eval_outdir, "all-liver-samples", model_name)
 
 message("Done.")

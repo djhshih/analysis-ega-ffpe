@@ -36,6 +36,14 @@ frozen_tumoral <- lookup_table[(lookup_table$preservation == "Frozen" & lookup_t
 # Evaluate vafsnvf
 ## Per Sample
 ## Each sample is evaluated first due to the necessity of independently annotating the scores with ground truth
+
+## Workflow:
+# The SNVs with the score annotations are first read
+# Then the ground truth is constructed by reading SNVs from the match FF sample. 
+# An SNV union is made from multiple FF samples if they exist
+# The truths are annotated via intersection of the FF SNVs and the FFPE SNVs
+# Evaluation is then carried out using precrec
+# The per sample evaluations result (AUC, ROC coordinates and PRC coordinates) and the SNV score truth annotation table is then saved
 message("Evaluating vafsnvf:")
 model_name <- "vafsnvf"
 for (index in seq_len(nrow(ffpe_tumoral))){
