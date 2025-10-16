@@ -1,4 +1,6 @@
-**/gatk*
+**/gatk-best-practices
+**/gatk-test-data
+**/ref
 **/.fasta*
 **/cromwell*
 **/per_sample_scripts
@@ -6,3 +8,6 @@
 **/*old
 **/*bad_naming
 **/log
+**/*.bam
+**/*.bai
+**/*.vcf*
