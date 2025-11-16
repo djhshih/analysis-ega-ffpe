@@ -5,11 +5,12 @@ set -euo pipefail
 bam_path=$1
 vcf_path=$2
 root_outdir=$3
+ref=$4
 
 vcf_name=$(basename $vcf_path)
 sample_name=${vcf_name%%.*}
 
-ref=../data/ref/Homo_sapiens_assembly38.fasta
+
 
 # vcf_indir=../../../data/vcf_ad_filtered
 # bam_indir=../../../data/bam
