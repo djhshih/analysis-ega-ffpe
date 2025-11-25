@@ -1,5 +1,5 @@
 ## This script is used to make ROC and PRC plots from the evaluation results aggregated using combine_results.R
-source("../R/plot.R")
+source("../common-ffpe-snvf/R/plot.R")
 
 ## Set output directory
 outdir_root = "EGAD00001004066/somatic_vcf/plots_publication"
@@ -29,8 +29,8 @@ for (i in seq_len(length(roc_coord_paths))) {
 	roc_coord <- qread(roc_coord_paths[i])
 	prc_coord <- qread(prc_coord_paths[i])
 
-	roc_prc_plot <- make_roc_prc_plot(roc_coord, prc_coord, title = "Bonnet et al., 2018", subtitle = sample_name)
+	roc_prc_plot <- make_roc_prc_plot(roc_coord, prc_coord, title = NULL, subtitle = NULL, caption = NULL, text_scale=2, line_width = 1.5, legend_scale = 1)
 
-	qdraw(roc_prc_plot, glue("{outdir}/{sample_name}_roc_prc_plot.pdf"), width = 6, height = 5)
+	qdraw(roc_prc_plot, glue("{outdir}/{sample_name}_roc_prc_plot.pdf"), width = 8, height = 5)
 
 }
