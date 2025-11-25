@@ -5,16 +5,17 @@ library(io)
 eval_dir = "EGAD00001004066/somatic_vcf/roc-prc-auc/precrec"
 
 ## List name of models that were evaluated. 
-models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm")
+models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm", "microsec", "ideafix")
 
 ## Combine the AUC table for each sample and overall eval i.e all sample, liver samples, colon samples
 message("Combining AUCs")
 auc_paths <- list.files(eval_dir, pattern = "_auc_table.tsv", recursive = TRUE, full.names = TRUE)
+auc_paths <- auc_paths[!grepl("combined", auc_paths)]
 
 auc <- do.call(
 	rbind,
 	lapply(
-		auc_paths, 
+		auc_paths,
 		read.delim
 	)
 )
