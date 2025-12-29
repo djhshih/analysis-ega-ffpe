@@ -10,7 +10,8 @@ paths = sorted(
 	glob.glob("somatic_vcf/*/*/*.vafsnvf.snv") +
 	glob.glob("somatic_vcf/*/*/*.sobdetector.snv") +
 	glob.glob("somatic_vcf/*/*/*.microsec.tsv") +
-	glob.glob("somatic_vcf/*/*/*.ideafix.tsv")
+	glob.glob("somatic_vcf/*/*/*.ideafix.tsv") +
+	glob.glob("somatic_vcf/*/*/*.gatk-obmm.tsv")
 )
 
 paths = [path for path in paths if "Frozen" not in path]
@@ -50,7 +51,7 @@ for i, path in enumerate(paths):
 	# Write output
 	output_dir = f"{filter_type}/{model}/{sample_name}"
 	os.makedirs(output_dir, exist_ok=True)
-	if model in ["microsec", "ideafix"]:
+	if model in ["microsec", "ideafix", "gatk-obmm"]:
 		output_path = f"{output_dir}/{sample_name}.{model}.tsv"
 	else:
 		output_path = f"{output_dir}/{sample_name}.{model}.snv"
