@@ -174,6 +174,16 @@ evaluate_sample_set <- function(
 	mobsnvf_overall_res <- evaluate_filter(mobsnvf_all_score_truth, model_name, "all-samples")
 	write_overall_eval(mobsnvf_all_score_truth, mobsnvf_overall_res, outdir_root, "all-samples", model_name)
 
+	# Evaluate across colon samples
+	mobsnvf_colon_score_truth <- mobsnvf_all_score_truth[grepl("Colon", mobsnvf_all_score_truth$sample_name), ]
+	mobsnvf_colon_res <- evaluate_filter(mobsnvf_colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(mobsnvf_colon_score_truth, mobsnvf_colon_res, outdir_root, "all-colon-samples", model_name)
+
+	# Evaluate across liver samples
+	mobsnvf_liver_score_truth <- mobsnvf_all_score_truth[grepl("Liver", mobsnvf_all_score_truth$sample_name), ]
+	mobsnvf_liver_res <- evaluate_filter(mobsnvf_liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(mobsnvf_liver_score_truth, mobsnvf_liver_res, outdir_root, "all-liver-samples", model_name)
+
 }
 
 
@@ -193,23 +203,23 @@ frozen_tumoral <- annot_table[(annot_table$preservation == "Frozen"), ]
 message("Evaluating Mobsnvf:")
 model_name <- "mobsnvf"
 
-# ## Evaluate the tumor-only dataset
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf",
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf"
-# )
+## Evaluate the tumor-only dataset
+evaluate_sample_set(
+	ffpe_tumoral = ffpe_tumoral,
+	frozen_tumoral = frozen_tumoral,
+	model_name = model_name,
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf"
+)
 
-# ## Evaluate the tumor-only dataset with DP>=10
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10"
-# )
+## Evaluate the tumor-only dataset with DP>=10
+evaluate_sample_set(
+	ffpe_tumoral = ffpe_tumoral,
+	frozen_tumoral = frozen_tumoral,
+	model_name = model_name,
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10"
+)
 
 ## Evaluate the tumor-only dataset with DP>=10 and MICR artifacts removed [MicroSEC Filter 1234]
 evaluate_sample_set(

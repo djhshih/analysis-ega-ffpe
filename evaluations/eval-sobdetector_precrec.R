@@ -174,6 +174,16 @@ evaluate_sample_set <- function(
 	sobdetector_overall_res <- evaluate_filter(sobdetector_all_score_truth, model_name, "all-samples")
 	write_overall_eval(sobdetector_all_score_truth, sobdetector_overall_res, outdir_root, "all-samples", model_name)
 
+	# Evaluate across colon samples
+	sobdetector_colon_score_truth <- sobdetector_all_score_truth[grepl("Colon", sobdetector_all_score_truth$sample_name), ]
+	sobdetector_colon_res <- evaluate_filter(sobdetector_colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(sobdetector_colon_score_truth, sobdetector_colon_res, outdir_root, "all-colon-samples", model_name)
+
+	# Evaluate across liver samples
+	sobdetector_liver_score_truth <- sobdetector_all_score_truth[grepl("Liver", sobdetector_all_score_truth$sample_name), ]
+	sobdetector_liver_res <- evaluate_filter(sobdetector_liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(sobdetector_liver_score_truth, sobdetector_liver_res, outdir_root, "all-liver-samples", model_name)
+
 }
 
 

@@ -9,7 +9,7 @@ eval_dirs = c(
 		)
 
 ## List name of models that were evaluated. 
-models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm", "microsec", "ideafix")
+models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm", "microsec", "ideafix", "ffpolish")
 
 for (eval_dir in eval_dirs){
 

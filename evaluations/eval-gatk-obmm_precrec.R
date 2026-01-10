@@ -174,6 +174,16 @@ evaluate_sample_set <- function(
 	gatk_obmm_overall_res <- evaluate_filter(gatk_obmm_all_score_truth, model_name, "all-samples")
 	write_overall_eval(gatk_obmm_all_score_truth, gatk_obmm_overall_res, outdir_root, "all-samples", model_name)
 
+	# Evaluate across colon samples
+	gatk_obmm_colon_score_truth <- gatk_obmm_all_score_truth[grepl("Colon", gatk_obmm_all_score_truth$sample_name), ]
+	gatk_obmm_colon_res <- evaluate_filter(gatk_obmm_colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(gatk_obmm_colon_score_truth, gatk_obmm_colon_res, outdir_root, "all-colon-samples", model_name)
+
+	# Evaluate across liver samples
+	gatk_obmm_liver_score_truth <- gatk_obmm_all_score_truth[grepl("Liver", gatk_obmm_all_score_truth$sample_name), ]
+	gatk_obmm_liver_res <- evaluate_filter(gatk_obmm_liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(gatk_obmm_liver_score_truth, gatk_obmm_liver_res, outdir_root, "all-liver-samples", model_name)
+
 }
 
 

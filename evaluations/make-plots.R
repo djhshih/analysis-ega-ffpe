@@ -13,7 +13,8 @@ models <- c(
 	"gatk-obmm" = "GATK-OBMM",
 	"sobdetector" = "SOBDetector",
 	"microsec" = "MicroSEC",
-	"ideafix" = "Ideafix"
+	"ideafix" = "Ideafix",
+	"ffpolish" = "FFPolish"
 )
 
 for (dir in dset_dirs){
@@ -53,13 +54,13 @@ for (dir in dset_dirs){
 		prc_coord <- qread(prc_coord_paths[i])
 		prc_coord$model <- ifelse(prc_coord$model %in% names(models), models[prc_coord$model], prc_coord$model)
 
-		plots <- make_roc_prc_plot(roc_coord, prc_coord, title = NULL, subtitle = NULL, caption = NULL, text_scale=2, line_width = 1.5, legend_rows = 2, individual_plots = TRUE, legend_scale = 0.75)
+		plots <- make_roc_prc_plot(roc_coord, prc_coord, title = NULL, subtitle = NULL, caption = NULL, text_scale=2, line_width = 1.5, legend_rows = 3, individual_plots = TRUE, legend_scale = 0.8)
 
-		qdraw(plots$roc_prc, glue("{outdir}/{sample_name}_roc_prc_plot.pdf"), width = 9, height = 6)
+		qdraw(plots$roc_prc, glue("{outdir}/{sample_name}_roc_prc_plot.pdf"), width = 8, height = 6)
 		dir.create(glue("{outdir}/roc"), recursive = TRUE, showWarnings = FALSE)
-		qdraw(plots$roc, glue("{outdir}/roc/{sample_name}_roc_plot.pdf"), width = 7, height = 7)
+		qdraw(plots$roc, glue("{outdir}/roc/{sample_name}_roc_plot.pdf"), width = 5, height = 6)
 		dir.create(glue("{outdir}/prc"), recursive = TRUE, showWarnings = FALSE)
-		qdraw(plots$prc, glue("{outdir}/prc/{sample_name}_prc_plot.pdf"), width = 7, height = 7)
+		qdraw(plots$prc, glue("{outdir}/prc/{sample_name}_prc_plot.pdf"), width = 5, height = 6)
 
 	}
 }

@@ -174,6 +174,16 @@ evaluate_sample_set <- function(
 	vafsnvf_overall_res <- evaluate_filter(vafsnvf_all_score_truth, model_name, "all-samples")
 	write_overall_eval(vafsnvf_all_score_truth, vafsnvf_overall_res, outdir_root, "all-samples", model_name)
 
+	# Evaluate across colon samples
+	vafsnvf_colon_score_truth <- vafsnvf_all_score_truth[grepl("Colon", vafsnvf_all_score_truth$sample_name), ]
+	vafsnvf_colon_res <- evaluate_filter(vafsnvf_colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(vafsnvf_colon_score_truth, vafsnvf_colon_res, outdir_root, "all-colon-samples", model_name)
+
+	# Evaluate across liver samples
+	vafsnvf_liver_score_truth <- vafsnvf_all_score_truth[grepl("Liver", vafsnvf_all_score_truth$sample_name), ]
+	vafsnvf_liver_res <- evaluate_filter(vafsnvf_liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(vafsnvf_liver_score_truth, vafsnvf_liver_res, outdir_root, "all-liver-samples", model_name)
+
 }
 
 

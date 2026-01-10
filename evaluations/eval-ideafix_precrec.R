@@ -174,6 +174,16 @@ evaluate_sample_set <- function(
 	ideafix_overall_res <- evaluate_filter(ideafix_all_score_truth, model_name, "all-samples")
 	write_overall_eval(ideafix_all_score_truth, ideafix_overall_res, outdir_root, "all-samples", model_name)
 
+	# Evaluate across colon samples
+	ideafix_colon_score_truth <- ideafix_all_score_truth[grepl("Colon", ideafix_all_score_truth$sample_name), ]
+	ideafix_colon_res <- evaluate_filter(ideafix_colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(ideafix_colon_score_truth, ideafix_colon_res, outdir_root, "all-colon-samples", model_name)
+
+	# Evaluate across liver samples
+	ideafix_liver_score_truth <- ideafix_all_score_truth[grepl("Liver", ideafix_all_score_truth$sample_name), ]
+	ideafix_liver_res <- evaluate_filter(ideafix_liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(ideafix_liver_score_truth, ideafix_liver_res, outdir_root, "all-liver-samples", model_name)
+
 }
 
 
