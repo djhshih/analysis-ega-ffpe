@@ -31,7 +31,7 @@ source("../common-ffpe-snvf/R/eval.R")
 #' @examples
 #' \dontrun{
 #' truth <- get_truth_set("CASE001", "mutect2", c("file1.vcf", "file2.vcf"))
-get_truth_set <- function(case_id, matched_ff_vcf_paths, outdir = main.outdir) {
+get_truth_set <- function(case_id, matched_ff_vcf_paths, outdir) {
 	truth_set_dir <- file.path(outdir, "truth_sets")
 	dir.create(truth_set_dir, showWarnings = FALSE, recursive = TRUE)
 	truth_set_path <- file.path(truth_set_dir, paste(basename(matched_ff_vcf_paths), collapse = "_"), sprintf("%s.tsv", case_id))
@@ -114,7 +114,7 @@ evaluate_sample_set <- function(
 		matched_ff_sample_names <- matched_ff_annot[[sample_id_col]]
 		matched_ff_vcf_paths <- file.path(ff_vcf_dir, matched_ff_sample_names, sprintf("%s.vcf.gz", matched_ff_sample_names))
 
-		snvf_path <- file.path(ffpe_snvf_dir, model_name, sample_name, sprintf("%s.%s.snv", sample_name, model_name))
+		snvf_path <- file.path(ffpe_snvf_dir, model_name, sample_name, sprintf("%s.%s.tsv", sample_name, model_name))
 
 		if (!file.exists(snvf_path)){
 			message(sprintf("	Warning: %s SNVF does not exist at %s . Skipping", model_name, snvf_path))
@@ -126,7 +126,7 @@ evaluate_sample_set <- function(
 		# Get ground truth for that sample
 		truth <- get_truth_set(case_id, matched_ff_vcf_paths, outdir = outdir_root)
 		# Apply model specific processing
-		d <- preprocess_vafsnvf(d, truth)
+		d <- preprocess_ffpolish(d, truth)
 		
 		## Check if true labels exist in the variant_score_truth table (d)
 		## If not this means there's no overlap between FFPE and FF variants
@@ -145,10 +145,10 @@ evaluate_sample_set <- function(
 		message(sprintf("	%s", snvf_path))
 
 		# Evaluate the filter's performance
-		vafsnvf_res <- evaluate_filter(d, model_name, sample_name)
+		ffpolish_res <- evaluate_filter(d, model_name, sample_name)
 
 		# write results
-		write_sample_eval(d, vafsnvf_res, outdir_root, sample_name, model_name)
+		write_sample_eval(d, ffpolish_res, outdir_root, sample_name, model_name)
 		
 	}
 
@@ -156,7 +156,7 @@ evaluate_sample_set <- function(
 	## The scores annotated with ground truth is combined into a single dataframe
 	message("	performing Evaluation across all samples")
 
-	vafsnvf_all_score_truth <- do.call(
+	ffpolish_all_score_truth <- do.call(
 		rbind,
 		lapply(ffpe_tumoral[[sample_id_col]], function(sample_name) {
 			path <- file.path(outdir_root, "model-scores_truths", sample_name, sprintf("%s_%s-scores_truths.tsv", sample_name, model_name))
@@ -171,18 +171,18 @@ evaluate_sample_set <- function(
 	)
 
 	# Evaluate across all samples
-	vafsnvf_overall_res <- evaluate_filter(vafsnvf_all_score_truth, model_name, "all-samples")
-	write_overall_eval(vafsnvf_all_score_truth, vafsnvf_overall_res, outdir_root, "all-samples", model_name)
+	ffpolish_overall_res <- evaluate_filter(ffpolish_all_score_truth, model_name, "all-samples")
+	write_overall_eval(ffpolish_all_score_truth, ffpolish_overall_res, outdir_root, "all-samples", model_name)
 
 	# Evaluate across colon samples
-	vafsnvf_colon_score_truth <- vafsnvf_all_score_truth[grepl("Colon", vafsnvf_all_score_truth$sample_name), ]
-	vafsnvf_colon_res <- evaluate_filter(vafsnvf_colon_score_truth, model_name, "all-colon-samples")
-	write_overall_eval(vafsnvf_colon_score_truth, vafsnvf_colon_res, outdir_root, "all-colon-samples", model_name)
+	ffpolish_colon_score_truth <- ffpolish_all_score_truth[grepl("Colon", ffpolish_all_score_truth$sample_name), ]
+	ffpolish_colon_res <- evaluate_filter(ffpolish_colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(ffpolish_colon_score_truth, ffpolish_colon_res, outdir_root, "all-colon-samples", model_name)
 
 	# Evaluate across liver samples
-	vafsnvf_liver_score_truth <- vafsnvf_all_score_truth[grepl("Liver", vafsnvf_all_score_truth$sample_name), ]
-	vafsnvf_liver_res <- evaluate_filter(vafsnvf_liver_score_truth, model_name, "all-liver-samples")
-	write_overall_eval(vafsnvf_liver_score_truth, vafsnvf_liver_res, outdir_root, "all-liver-samples", model_name)
+	ffpolish_liver_score_truth <- ffpolish_all_score_truth[grepl("Liver", ffpolish_all_score_truth$sample_name), ]
+	ffpolish_liver_res <- evaluate_filter(ffpolish_liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(ffpolish_liver_score_truth, ffpolish_liver_res, outdir_root, "all-liver-samples", model_name)
 
 }
 
@@ -200,8 +200,8 @@ frozen_tumoral <- annot_table[(annot_table$preservation == "Frozen"), ]
 
 
 # Evaluate the ffpe filter
-message("Evaluating vafsnvf:")
-model_name <- "vafsnvf"
+message("Evaluating ffpolish:")
+model_name <- "ffpolish"
 
 # ## Evaluate the tumor-only dataset
 # evaluate_sample_set(
@@ -238,4 +238,3 @@ evaluate_sample_set(
 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp10-blacklist",
 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp10-blacklist_micr1234-excluded"
 )
-

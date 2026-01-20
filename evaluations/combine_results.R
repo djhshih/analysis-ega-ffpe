@@ -3,10 +3,11 @@ library(io)
 
 ## Dataset specific
 eval_dirs = c(
-			"EGAD00001004066/somatic_vcf-dp10_msec-1234-excluded/roc-prc-auc/precrec",
-			"EGAD00001004066/somatic_vcf-dp10/roc-prc-auc/precrec",
-			"EGAD00001004066/somatic_vcf/roc-prc-auc/precrec"
-		)
+	"EGAD00001004066/somatic_filtered-dp10-blacklist_micr1234-excluded"
+	# "EGAD00001004066/somatic_vcf-dp10_msec-1234-excluded",
+	# "EGAD00001004066/somatic_vcf-dp10",
+	# "EGAD00001004066/somatic_vcf"
+)
 
 ## List name of models that were evaluated. 
 models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm", "microsec", "ideafix", "ffpolish")
@@ -14,6 +15,8 @@ models <- c("all-models", "mobsnvf", "vafsnvf", "sobdetector", "gatk-obmm", "mic
 for (eval_dir in eval_dirs){
 
 	message(sprintf("Processing eval_dir: %s", eval_dir))
+
+	eval_dir <- file.path(eval_dir, "roc-prc-auc/precrec")
 
 	## Combine the AUC table for each sample and overall eval i.e all sample, liver samples, colon samples
 	message("Combining AUCs")

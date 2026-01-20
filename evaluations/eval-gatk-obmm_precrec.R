@@ -203,29 +203,38 @@ frozen_tumoral <- annot_table[(annot_table$preservation == "Frozen"), ]
 message("Evaluating gatk-obmm:")
 model_name <- "gatk-obmm"
 
-## Evaluate the tumor-only dataset
-evaluate_sample_set(
-	ffpe_tumoral = ffpe_tumoral,
-	frozen_tumoral = frozen_tumoral,
-	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf"
-)
+# ## Evaluate the tumor-only dataset
+# evaluate_sample_set(
+# 	ffpe_tumoral = ffpe_tumoral,
+# 	frozen_tumoral = frozen_tumoral,
+# 	model_name = model_name,
+# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf",
+# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf"
+# )
 
-## Evaluate the tumor-only dataset with DP>=10
-evaluate_sample_set(
-	ffpe_tumoral = ffpe_tumoral,
-	frozen_tumoral = frozen_tumoral,
-	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10"
-)
+# ## Evaluate the tumor-only dataset with DP>=10
+# evaluate_sample_set(
+# 	ffpe_tumoral = ffpe_tumoral,
+# 	frozen_tumoral = frozen_tumoral,
+# 	model_name = model_name,
+# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
+# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10"
+# )
 
-## Evaluate the tumor-only dataset with DP>=10 and MICR artifacts removed [MicroSEC Filter 1234]
+# ## Evaluate the tumor-only dataset with DP>=10 and MICR artifacts removed [MicroSEC Filter 1234]
+# evaluate_sample_set(
+# 	ffpe_tumoral = ffpe_tumoral,
+# 	frozen_tumoral = frozen_tumoral,
+# 	model_name = model_name,
+# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
+# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10_msec-1234-excluded"
+# )
+
+## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
 	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10_msec-1234-excluded"
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp10-blacklist",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp10-blacklist_micr1234-excluded"
 )
