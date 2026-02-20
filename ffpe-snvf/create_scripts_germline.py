@@ -15,11 +15,14 @@ for vcf_path in vcf_paths:
     sample_name = vcf_filename.removesuffix(".vcf.gz")
     
     for model in models:
-        content = f"#!/bin/bash\nbash ../{model}.sh.template '../../bam/EGAD00001004066/{sample_name}/{sample_name}.bam' '../{vcf_path}' '../{filtered_outdir}'\n"
+        content = [
+            "#!/bin/bash",
+            f"bash ../{model}.sh.template '../../bam/EGAD00001004066/{sample_name}/{sample_name}.bam' '../{vcf_path}' '../{filtered_outdir}'",
+        ]
         filename = f"{outdir}/{model}_{sample_name}.sh"
         
         with open(filename, "w") as f:
-            f.write(content)
+            f.writelines(content)
             
         print(f"Created {model} filtering script for {vcf_path}")
 
