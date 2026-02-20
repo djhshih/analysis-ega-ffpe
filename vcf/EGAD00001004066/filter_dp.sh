@@ -2,13 +2,13 @@
 
 set -euo pipefail
 
-root_outdir="somatic_vcf-dp10"
+root_outdir="somatic_filtered-dp20"
 mkdir -p $root_outdir
 
-filter_expression='MIN(FMT/DP)>=10'
+filter_expression='MIN(FMT/DP)>=20'
 echo -e "Filtering Expression: $filter_expression"
 
-for vcf in somatic_vcf/*/*.vcf.gz; do
+for vcf in somatic_filtered/*/*.vcf.gz; do
     
     filename=$(basename $vcf)
     sample_name=${filename%%.*}

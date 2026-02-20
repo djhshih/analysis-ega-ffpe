@@ -2,13 +2,13 @@
 
 set -euo pipefail
 
-root_outdir="somatic_filtered-dp10-blacklist"
+root_outdir="somatic_filtered-dp20-blacklist"
 mkdir -p $root_outdir
 
 blacklist_path="../../data/blacklists/master_blacklist.bed.gz"
 echo -e "Filtering using blacklist: $blacklist_path"
 
-for vcf in somatic_vcf-dp10/*/*.vcf.gz; do
+for vcf in somatic_filtered-dp20/*/*.vcf.gz; do
     
     filename=$(basename $vcf)
     sample_name=${filename%%.*}
