@@ -11,3 +11,10 @@
 **/*.bam
 **/*.bai
 **/*.vcf*
+evaluations_*
+*script*
+*.rg.txt
+*.fq
+*.pdf
+*.bed*
+*sbatch*

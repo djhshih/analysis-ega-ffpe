@@ -1,0 +1,8 @@
+*.tsv
+*.snv
+*.pdf
+*.json
+*.bed*
+*.sites
+*.readcounts
+*sbatch*
