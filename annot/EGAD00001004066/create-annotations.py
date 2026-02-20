@@ -1,10 +1,8 @@
 import polars as pl
 
 sample_metadata = pl.read_csv("samples.csv")
-sample_metadata
 
 ### Create sample annotation file
-
 sample_metadata_refined = (
 	sample_metadata
  	.select([
@@ -28,14 +26,14 @@ sample_metadata_refined = (
         pl.col("title_split").list.get(2).alias("sample_type"),
 		(pl.col("title") + pl.lit("_") + pl.col("sample_alias")).alias("sample_name")
 	)
+    .with_columns(pl.col("tissue_type").alias("case_id"))
 	.drop("title_split")
-	.select(['sample_name','sample_alias','sample_accession_id','preservation','tissue_type','sample_type','phenotype','biological_sex'])
+	.select(['sample_name','sample_alias', 'case_id', 'sample_accession_id','preservation','tissue_type','sample_type','phenotype','biological_sex'])
 )
 
 sample_metadata_refined.write_csv("sample_annotations.tsv", separator="\t")
 
 ### Create fastq annotation file
-
 fastq_metadata = pl.read_csv("sample_file.csv")
 
 fastq_metadata = (
@@ -54,8 +52,8 @@ fastq_annotation = (
 
 fastq_annotation.write_csv("fastq_annotations.tsv", separator="\t")
 
-### Create an annotation file for both samples and fastqs
 
+### Create an annotation file for both samples and fastqs
 sample_fastq_annotation = (
 	sample_metadata_refined
  	.join(fastq_metadata, on=["sample_accession_id","sample_alias"], how="inner")
@@ -69,7 +67,6 @@ sample_fastq_annotation = (
 sample_fastq_annotation.write_csv("sample_fastq_annotations.tsv", separator="\t")
 
 ### Generate a count of samples per tissue type
-
 sample_count = (
 	sample_metadata_refined
 	.group_by(["tissue_type"])
