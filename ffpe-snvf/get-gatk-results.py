@@ -27,9 +27,8 @@ def process_dataset(dataset: str = "EGAD00001004066", variant_set: str = "somati
 		outdir.mkdir(exist_ok=True, parents=True)
 
 		gatk_res = read_variants(path, columns=["#CHROM", "POS", "REF", "ALT", "FILTER"])
-		gatk_res.write_csv((outdir / sample_name).with_suffix(".gatk-obmm.tsv"))
+		gatk_res.write_csv((outdir / sample_name).with_suffix(".gatk-obmm.tsv"), separator="\t")
 
 ## Get GATK OBMM results
 process_dataset(dataset = "EGAD00001004066", variant_set = "somatic_filtered")
-
 
