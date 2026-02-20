@@ -3,10 +3,10 @@ library(io)
 
 ## Dataset specific
 eval_dirs = c(
-	"EGAD00001004066/somatic_filtered-dp10-blacklist_micr1234-excluded"
-	# "EGAD00001004066/somatic_vcf-dp10_msec-1234-excluded",
-	# "EGAD00001004066/somatic_vcf-dp10",
-	# "EGAD00001004066/somatic_vcf"
+	"EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
+	"EGAD00001004066/somatic_filtered-dp20-blacklist",
+	"EGAD00001004066/somatic_filtered-dp20",
+	"EGAD00001004066/somatic_filtered"
 )
 
 ## List name of models that were evaluated. 
@@ -89,3 +89,4 @@ for (eval_dir in eval_dirs){
 	message("Done.")
 
 }
+

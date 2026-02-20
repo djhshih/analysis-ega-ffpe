@@ -95,6 +95,7 @@ evaluate_sample_set <- function(
 	model_name,
 	ff_vcf_dir,
 	ffpe_snvf_dir,
+	ground_truth_dir,
 	case_id_col = "tissue_type",
 	sample_id_col = "sample_name"
 ) {
@@ -109,11 +110,6 @@ evaluate_sample_set <- function(
 		variant_set <- basename(ffpe_snvf_dir)
 		outdir_root <- file.path(dataset, variant_set)
 
-		## Getting matched FF metadata by matching case ID and workflow type i.e variant caller
-		matched_ff_annot <- frozen_tumoral[(frozen_tumoral[[case_id_col]] == case_id), ]
-		matched_ff_sample_names <- matched_ff_annot[[sample_id_col]]
-		matched_ff_vcf_paths <- file.path(ff_vcf_dir, matched_ff_sample_names, sprintf("%s.vcf.gz", matched_ff_sample_names))
-
 		snvf_path <- file.path(ffpe_snvf_dir, model_name, sample_name, sprintf("%s.%s.snv", sample_name, model_name))
 
 		if (!file.exists(snvf_path)){
@@ -121,12 +117,15 @@ evaluate_sample_set <- function(
 			next
 		}
 
+		## Read in the ground truth
+		ground_truth <- read.delim(file.path(ground_truth_dir, sample_name, sprintf("%s.ground-truth.tsv", sample_name)))
+		ground_truth$truth <- as.logical(ground_truth$truth)
+
 		# read model's score for each sample
 		d <- read.delim(snvf_path)
-		# Get ground truth for that sample
-		truth <- get_truth_set(case_id, matched_ff_vcf_paths, outdir = outdir_root)
 		# Apply model specific processing
-		d <- preprocess_sobdetector(d, truth)
+		d <- preprocess_sobdetector(d)
+		d <- merge(ground_truth, d, by = c("chrom", "pos", "ref", "alt"))
 		
 		## Check if true labels exist in the variant_score_truth table (d)
 		## If not this means there's no overlap between FFPE and FF variants
@@ -145,10 +144,10 @@ evaluate_sample_set <- function(
 		message(sprintf("	%s", snvf_path))
 
 		# Evaluate the filter's performance
-		sobdetector_res <- evaluate_filter(d, model_name, sample_name)
+		res <- evaluate_filter(d, model_name, sample_name)
 
 		# write results
-		write_sample_eval(d, sobdetector_res, outdir_root, sample_name, model_name)
+		write_sample_eval(d, res, outdir_root, sample_name, model_name)
 		
 	}
 
@@ -156,7 +155,7 @@ evaluate_sample_set <- function(
 	## The scores annotated with ground truth is combined into a single dataframe
 	message("	performing Evaluation across all samples")
 
-	sobdetector_all_score_truth <- do.call(
+	all_score_truth <- do.call(
 		rbind,
 		lapply(ffpe_tumoral[[sample_id_col]], function(sample_name) {
 			path <- file.path(outdir_root, "model-scores_truths", sample_name, sprintf("%s_%s-scores_truths.tsv", sample_name, model_name))
@@ -171,18 +170,18 @@ evaluate_sample_set <- function(
 	)
 
 	# Evaluate across all samples
-	sobdetector_overall_res <- evaluate_filter(sobdetector_all_score_truth, model_name, "all-samples")
-	write_overall_eval(sobdetector_all_score_truth, sobdetector_overall_res, outdir_root, "all-samples", model_name)
+	overall_res <- evaluate_filter(all_score_truth, model_name, "all-samples")
+	write_overall_eval(all_score_truth, overall_res, outdir_root, "all-samples", model_name)
 
 	# Evaluate across colon samples
-	sobdetector_colon_score_truth <- sobdetector_all_score_truth[grepl("Colon", sobdetector_all_score_truth$sample_name), ]
-	sobdetector_colon_res <- evaluate_filter(sobdetector_colon_score_truth, model_name, "all-colon-samples")
-	write_overall_eval(sobdetector_colon_score_truth, sobdetector_colon_res, outdir_root, "all-colon-samples", model_name)
+	colon_score_truth <- all_score_truth[grepl("Colon", all_score_truth$sample_name), ]
+	colon_res <- evaluate_filter(colon_score_truth, model_name, "all-colon-samples")
+	write_overall_eval(colon_score_truth, colon_res, outdir_root, "all-colon-samples", model_name)
 
 	# Evaluate across liver samples
-	sobdetector_liver_score_truth <- sobdetector_all_score_truth[grepl("Liver", sobdetector_all_score_truth$sample_name), ]
-	sobdetector_liver_res <- evaluate_filter(sobdetector_liver_score_truth, model_name, "all-liver-samples")
-	write_overall_eval(sobdetector_liver_score_truth, sobdetector_liver_res, outdir_root, "all-liver-samples", model_name)
+	liver_score_truth <- all_score_truth[grepl("Liver", all_score_truth$sample_name), ]
+	liver_res <- evaluate_filter(liver_score_truth, model_name, "all-liver-samples")
+	write_overall_eval(liver_score_truth, liver_res, outdir_root, "all-liver-samples", model_name)
 
 }
 
@@ -203,38 +202,42 @@ frozen_tumoral <- annot_table[(annot_table$preservation == "Frozen"), ]
 message("Evaluating sobdetector:")
 model_name <- "sobdetector"
 
-# ## Evaluate the tumor-only dataset
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf",
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf"
-# )
-
-# ## Evaluate the tumor-only dataset with DP>=10
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10"
-# )
-
-# ## Evaluate the tumor-only dataset with DP>=10 and MICR artifacts removed [MicroSEC Filter 1234]
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_vcf-dp10",
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_vcf-dp10_msec-1234-excluded"
-# )
+## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+evaluate_sample_set(
+	ffpe_tumoral = ffpe_tumoral,
+	frozen_tumoral = frozen_tumoral,
+	model_name = model_name,
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered"
+)
 
 ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
 	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp10-blacklist",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp10-blacklist_micr1234-excluded"
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp20",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20"
+)
+
+## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+evaluate_sample_set(
+	ffpe_tumoral = ffpe_tumoral,
+	frozen_tumoral = frozen_tumoral,
+	model_name = model_name,
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp20-blacklist",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
+)
+
+## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+evaluate_sample_set(
+	ffpe_tumoral = ffpe_tumoral,
+	frozen_tumoral = frozen_tumoral,
+	model_name = model_name,
+	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp20-blacklist",
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
 )
