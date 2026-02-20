@@ -92,8 +92,8 @@ def filter_sample_set(dataset: str, msec_set_name: str, snvf_set_name:str, new_s
 
 filter_sample_set(
     dataset = "EGAD00001004066",
-    msec_set_name = "somatic_vcf-dp10",
-    snvf_set_name = "somatic_filtered-dp10-blacklist",
-    new_snvf_set_name = "somatic_filtered-dp10-blacklist_micr1234-excluded", 
+    msec_set_name = "somatic_filtered-dp20-blacklist",
+    snvf_set_name = "somatic_filtered-dp20-blacklist",
+    new_snvf_set_name = "somatic_filtered-dp20-blacklist-micr1234",
     msec_filter_col = "msec_filter_1234"
 )

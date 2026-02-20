@@ -4,13 +4,13 @@ import os
 import glob
 from tqdm import tqdm
 import sys
-from typing import Optional
 
 # Local Dependencies
 repo_root = ".."
 sys.path.append(f"{repo_root}/common-ffpe-snvf/python")
 from common import read_variants
 
+## Functions
 def get_filtering_summary(
     sample_name: str, 
     model: str, 
@@ -31,13 +31,14 @@ def get_filtering_summary(
         "sample_name" : sample_name,
         "model" : model,
         "n_var_original" : n_orig,
-        "n_var_target_set" : n_target,
+        "n_var_target_vcf" : n_target,
         "n_var_filtered_snvf": n_filtered,
         "n_var_removed" : n_orig - n_filtered,
         "pct_removed" : ((n_orig - n_filtered) / n_orig) * 100
     }
 
     return summary
+
 
 def get_ffpe_snvf_paths(dataset: str, variant_set: str) -> list:
 	"""
@@ -57,22 +58,16 @@ def get_ffpe_snvf_paths(dataset: str, variant_set: str) -> list:
 	return paths
 
 
-## SNVF Blacklist Filtering
-## Wrapper Function
-def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: Optional[str] = None) -> None:
-
-	if not new_variant_set:
-		new_variant_set = f"{source_variant_set}-blacklist"
+def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: str) -> None:
 
 	print(f"Processing Dataset: {dataset} | Variant Set: {source_variant_set}")
 
 	vcf_dir = f"{repo_root}/vcf/{dataset}/{new_variant_set}"
 
-	ffpe_snvf = get_ffpe_snvf_paths(dataset, source_variant_set)
-
+	ffpe_snvf_paths = get_ffpe_snvf_paths(dataset, source_variant_set)
 	filtering_summary = []
 
-	for path in tqdm(ffpe_snvf):
+	for path in tqdm(ffpe_snvf_paths):
 		model = path.split("/")[-3]
 		sample_name = path.split("/")[-2]
 		fname = os.path.basename(path)
@@ -81,10 +76,10 @@ def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: Optio
 		
 		target_vars_path = f"{vcf_dir}/{sample_name}/{sample_name}.vcf.gz"
 		target_vars = read_variants(target_vars_path)
-
+		
 		filtered_snvf = snvf.join(target_vars, on = ["chrom", "pos", "ref", "alt"], how="semi")
 
-		filtered_snvf_outdir = f"{dataset}/{new_variant_set}/{model}/{sample_name}"
+		filtered_snvf_outdir = f"{repo_root}/ffpe-snvf/{dataset}/{new_variant_set}/{model}/{sample_name}"
 		os.makedirs(filtered_snvf_outdir, exist_ok=True)
 
 		sample_filtering_summary = get_filtering_summary(
@@ -98,14 +93,17 @@ def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: Optio
 		)
 
 		filtering_summary.append(sample_filtering_summary)
+
 		filtered_snvf.write_csv(f"{filtered_snvf_outdir}/{fname}", separator="\t")
 
-	pl.DataFrame(filtering_summary).write_csv(f"{dataset}/{new_variant_set}/blacklist-exclusion_filtering-summary.tsv", separator="\t")
+	pl.DataFrame(filtering_summary).write_csv(f"{dataset}/{new_variant_set}/low-dp-exclusion_filtering-summary.tsv", separator="\t")
 
-## SNVF Blacklist Filtering
+
+## SNVF DP Filtering
 ### Filter specified variant set from each dataset
 filter_dataset(
 	dataset = "EGAD00001004066", 
-    source_variant_set = "somatic_filtered-dp20",
-    new_variant_set = "somatic_filtered-dp20-blacklist"
+    source_variant_set = "somatic_filtered",
+    new_variant_set = "somatic_filtered-dp20"
 )
+

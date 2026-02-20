@@ -57,12 +57,11 @@ def get_ffpe_snvf_paths(dataset: str, variant_set: str) -> list:
 	return paths
 
 
-## SNVF Blacklist Filtering
-## Wrapper Function
+## SNVF GDC Filtering
 def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: Optional[str] = None) -> None:
 
 	if not new_variant_set:
-		new_variant_set = f"{source_variant_set}-blacklist"
+		new_variant_set = f"{source_variant_set}-gdc"
 
 	print(f"Processing Dataset: {dataset} | Variant Set: {source_variant_set}")
 
@@ -100,12 +99,12 @@ def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: Optio
 		filtering_summary.append(sample_filtering_summary)
 		filtered_snvf.write_csv(f"{filtered_snvf_outdir}/{fname}", separator="\t")
 
-	pl.DataFrame(filtering_summary).write_csv(f"{dataset}/{new_variant_set}/blacklist-exclusion_filtering-summary.tsv", separator="\t")
+	pl.DataFrame(filtering_summary).write_csv(f"{dataset}/{new_variant_set}/gdc-exclusion_filtering-summary.tsv", separator="\t")
 
-## SNVF Blacklist Filtering
+
 ### Filter specified variant set from each dataset
 filter_dataset(
 	dataset = "EGAD00001004066", 
     source_variant_set = "somatic_filtered-dp20",
-    new_variant_set = "somatic_filtered-dp20-blacklist"
+    new_variant_set = "somatic_filtered-dp20-blacklist-gdc"
 )
