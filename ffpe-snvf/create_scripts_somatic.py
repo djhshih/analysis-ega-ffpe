@@ -58,7 +58,7 @@ snvf_templates = {
     "ideafix" : return_path_if_exists(f"{repo_root}/common-ffpe-snvf/R/ideafix.R", abs=True),
     "mobsnvf" : return_path_if_exists(f"{repo_root}/common-ffpe-snvf/templates/ffpe-snvf/mobsnvf.sh.template", abs=True),
     "sobdetector" : return_path_if_exists(f"{repo_root}/common-ffpe-snvf/templates/ffpe-snvf/sobdetector.sh.template", abs=True),
-    "vafsnvf" : return_path_if_exists(f"{repo_root}/common-ffpe-snvf/templates/ffpe-snvf/sobdetector.sh.template", abs=True)
+    "vafsnvf" : return_path_if_exists(f"{repo_root}/common-ffpe-snvf/templates/ffpe-snvf/vafsnvf.sh.template", abs=True)
 }
 
 
