@@ -2,20 +2,20 @@
 
 set -euo pipefail
 
-# Function to remove variants in blacklist regions, compress, and index.
-blacklist_filter_vcf() {
+# Function to filter VCF based on exome target regions in provided bed
+filter_vcf() {
     # Check if the required arguments are provided
     if [[ $# -lt 2 ]]; then
-        echo "Usage: blacklist_filter_vcf <indir_root> <outdir_root> [blacklist_path]"
+        echo "Usage: filter_vcf <indir_root> <outdir_root> [exome_bed_path]"
         return 1
     fi
 
     local indir_root="$1"
     local outdir_root="$2"
     # Use the 3rd argument if provided, otherwise default to the hardcoded path
-    local blacklist_path="${3:-../../data/blacklists/master_blacklist.bed.gz}"
+    local exome_bed_path="${3:-../../data/regions/sureselect-all-exon-v5_hg38_regions_200bp-pad.bed}"
 
-    echo -e "Filtering using blacklist: $(realpath "$blacklist_path")"
+    echo -e "Filtering using exome target bed: $(realpath "$exome_bed_path")"
     echo -e "Input directory: $indir_root"
     echo -e "Output directory: $outdir_root\n"
 
@@ -33,7 +33,7 @@ blacklist_filter_vcf() {
 
         echo -e "\t$i. Filtering: $filename"
         
-        bcftools view -T ^"$blacklist_path" -O z -o "${outdir}/${sample_name}.vcf.gz" "$vcf"
+        bcftools view -T "$exome_bed_path" -O z -o "${outdir}/${sample_name}.vcf.gz" "$vcf"
         bcftools index -t "${outdir}/${sample_name}.vcf.gz"
 
         ((i++))
@@ -44,4 +44,4 @@ blacklist_filter_vcf() {
 }
 
 # Filter dataset
-blacklist_filter_vcf "somatic_filtered-exome" "somatic_filtered-exome-blacklist"
+filter_vcf "somatic_filtered" "somatic_filtered-exome"
