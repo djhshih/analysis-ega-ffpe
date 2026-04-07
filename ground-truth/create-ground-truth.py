@@ -124,15 +124,26 @@ process_dataset(
     annot_path = f"{repo_root}/annot/EGAD00001004066/sample_annotations.tsv"
 )
 
+# process_dataset(
+#     dataset = "EGAD00001004066",
+#     variant_set = "somatic_filtered-dp20",
+#     annot_path = f"{repo_root}/annot/EGAD00001004066/sample_annotations.tsv"
+# )
+
+# process_dataset(
+#     dataset = "EGAD00001004066",
+#     variant_set = "somatic_filtered-dp20-blacklist",
+#     annot_path = f"{repo_root}/annot/EGAD00001004066/sample_annotations.tsv"
+# )
 
 process_dataset(
     dataset = "EGAD00001004066",
-    variant_set = "somatic_filtered-dp20",
+    variant_set = "somatic_filtered-exome",
     annot_path = f"{repo_root}/annot/EGAD00001004066/sample_annotations.tsv"
 )
 
 process_dataset(
     dataset = "EGAD00001004066",
-    variant_set = "somatic_filtered-dp20-blacklist",
+    variant_set = "somatic_filtered-exome-blacklist",
     annot_path = f"{repo_root}/annot/EGAD00001004066/sample_annotations.tsv"
 )
