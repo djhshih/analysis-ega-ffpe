@@ -1,99 +1,125 @@
 #!/usr/bin/env python
+import polars as pl
 import os
 import glob
-import polars as pl
+from tqdm import tqdm
+
+repo_root = ".."
 
 ## Functions
-def check_res_existence(path: str, abs = False, halt: bool = False) -> str | None:
-	if os.path.exists(path):
-		return os.path.abspath(path) if abs else path
-	else:
-		if halt:
-			raise FileNotFoundError(f"{path} does not exist.")
-		else:
-			print(f"'{path}' does not exist. skipping...")
-			return None
+def get_filtering_summary(
+    sample_name: str, 
+    model: str, 
+    snvf_var_set: str,
+	msec_var_set: str,
+	msec_filter_col: str,
+    filtered_var_set: str, 
+    source_variants: pl.DataFrame, 
+    msec_artifacts: pl.DataFrame, 
+    selected_snvf: pl.DataFrame
+) -> dict:
+
+    n_orig = source_variants.height
+    n_msec_arti = msec_artifacts.height
+    n_selected = selected_snvf.height
+
+    summary = {
+        "source_var_set" : snvf_var_set,
+		"microsec_var_set": msec_var_set,
+        "filtered_var_set" : filtered_var_set,
+		"microsec_filter_col" : msec_filter_col,
+        "sample_name" : sample_name,
+        "model" : model,
+        "n_var_source_snvf" : n_orig,
+        "n_microsec_artifacts" : n_msec_arti,
+        "n_var_selected": n_selected,
+        "n_var_removed" : n_orig - n_selected,
+        "pct_removed" : ((n_orig - n_selected) / n_orig) * 100
+    }
+
+    return summary
 
 
-def filter_micr_artifacts(ffpe_filter: str, dataset: str, snvf_set_name: str, new_snvf_set_name: str, sample_name: str, micr_artifacts: pl.DataFrame, res_suffix: str = ".snv") -> pl.DataFrame:
+def get_ffpe_snvf_paths(dataset: str, variant_set: str) -> list:
+	"""
+	Returns the path for each FFPE SNVF model's
+	results for a specified variant set and dataset
+	"""
 
-	print(f"\tFiltering MICR artifacts from {ffpe_filter.upper()} results...")
-	ffpe_filter_res_path = check_res_existence(f"{dataset}/{snvf_set_name}/{ffpe_filter.lower()}/{sample_name}/{sample_name}.{ffpe_filter.lower()}{res_suffix}")
- 
-	if ffpe_filter_res_path is not None:
-		ffpe_filter_res = pl.read_csv(ffpe_filter_res_path, separator="\t", infer_schema_length=1000)
-		ffpe_filter_res_micr_filtered = ffpe_filter_res.join(micr_artifacts, on =["chrom", "pos", "ref", "alt"], how="anti")
+	paths = sorted(
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.mobsnvf.snv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.vafsnvf.snv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.sobdetector.snv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ideafix.tsv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.gatk-obmm.tsv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ffpolish.tsv")
+	)
 
-		output_dir = f"{dataset}/{new_snvf_set_name}/{ffpe_filter.lower()}/{sample_name}"
-		os.makedirs(output_dir, exist_ok=True)
-		output_path = f"{output_dir}/{sample_name}.{ffpe_filter.lower()}{res_suffix}"
-
-		ffpe_filter_res_micr_filtered.write_csv(output_path, separator="\t")
-		print(f"\t\tMICR filtered {ffpe_filter.upper()} results written to: {output_path}")
-
-		variants_before = ffpe_filter_res.height
-		artifact_variants = ffpe_filter_res.height - ffpe_filter_res_micr_filtered.height
-		variants_after = ffpe_filter_res_micr_filtered.height
-		print(f"\t\t{artifact_variants} MICR artifacts removed from {variants_before} variants ({(artifact_variants) / variants_before * 100:.2f}%).")
-		print(f"\t\t{variants_after} variants remain after MICR filtering.")
-
-		summary = pl.DataFrame({
-			"dataset": dataset,
-			"sample_name": sample_name,
-			"ffpe_filter" : f"{ffpe_filter.lower()}",
-			"total_variants": variants_before,
-			"micr_artifacts_removed": artifact_variants,
-			"variants_after_micr_filtering": variants_after,
-			"percent_removed": artifact_variants / variants_before * 100,
-		})
-
-		return summary
-
-	elif ffpe_filter_res_path is None:
-		return pl.DataFrame()
+	return paths
 
 
-## Filter MICR artifacts from each dataset
+def filter_dataset(
+		dataset: str, 
+		source_variant_set: str,
+		msec_variant_set: str,
+		new_variant_set: str,
+		mesc_filter_col: str = "msec_filter_1234"
+	) -> None:
 
-def filter_sample_set(dataset: str, msec_set_name: str, snvf_set_name:str, new_snvf_set_name: str, msec_filter_col:str) -> None:
+	print(f"Processing Dataset: {dataset} | Variant Set: {source_variant_set} | MicroSEC variant Set: {msec_variant_set} | Output Set: {new_variant_set}")
 
-	microsec_paths = glob.glob(f"{dataset}/{msec_set_name}/microsec/*/*.microsec.tsv")
+	vcf_dir = f"{repo_root}/vcf/{dataset}/{new_variant_set}"
+	msec_dir = f"{repo_root}/microsec/{dataset}/{msec_variant_set}"
 
-	micr_filtering_summaries = []
+	ffpe_snvf_paths = get_ffpe_snvf_paths(dataset, source_variant_set)
+	filtering_summary = []
 
-	for i, path in enumerate(microsec_paths):
-		sample_name = os.path.basename(path).replace(".microsec.tsv", "")
-		print(f"\n{i+1}. Processing... Dataset: {dataset}, Sample: {sample_name}")
+	for path in tqdm(ffpe_snvf_paths):
+		model = path.split("/")[-3]
+		sample_name = path.split("/")[-2]
+		fname = os.path.basename(path)
 
-		microsec = pl.read_csv(path, separator="\t", infer_schema_length=1000).rename({"Chr": "chrom"}).rename(lambda x: x.lower())
-		microsec_artifacts = microsec.filter(pl.col(msec_filter_col) == "Artifact suspicious")
+		## Read FFPE filtering model's results
+		snvf = pl.read_csv(path, separator="\t", infer_schema_length=1000)
+		
+		## Read MicroSEC results and select artifacts
+		msec_res_path = f"{msec_dir}/{sample_name}/{sample_name}.microsec.tsv"
+		msec_res = pl.read_csv(msec_res_path, separator="\t", infer_schema_length=10000)
+		msec_artifacts = msec_res.filter(pl.col(mesc_filter_col).is_not_null())
+		
+		## Remove variants that is seen in MicroSEC artifacts table
+		filtered_snvf = snvf.join(msec_artifacts, left_on = ["chrom", "pos", "ref", "alt"], right_on=["Chr", "Pos", "Ref", "Alt"], how="anti")
 
-		mobsnvf_summary = filter_micr_artifacts("mobsnvf", dataset, snvf_set_name, new_snvf_set_name, sample_name, microsec_artifacts)
-		micr_filtering_summaries.append(mobsnvf_summary)
-	
-		sobdetector_summary = filter_micr_artifacts("sobdetector", dataset, snvf_set_name, new_snvf_set_name, sample_name, microsec_artifacts)
-		micr_filtering_summaries.append(sobdetector_summary)
+		## Write filterd variants to disk
+		filtered_snvf_outdir = f"{repo_root}/ffpe-snvf/{dataset}/{new_variant_set}/{model}/{sample_name}"
+		os.makedirs(filtered_snvf_outdir, exist_ok=True)
 
-		vafsnvf_summary = filter_micr_artifacts("vafsnvf", dataset, snvf_set_name, new_snvf_set_name, sample_name, microsec_artifacts)
-		micr_filtering_summaries.append(vafsnvf_summary)
-	
-		ffpolish_summary = filter_micr_artifacts("ffpolish", dataset, snvf_set_name, new_snvf_set_name, sample_name, microsec_artifacts, res_suffix=".tsv")
-		micr_filtering_summaries.append(ffpolish_summary)
+		filtered_snvf.write_csv(f"{filtered_snvf_outdir}/{fname}", separator="\t")
 
-		ideafix_summary = filter_micr_artifacts("ideafix", dataset, snvf_set_name, new_snvf_set_name, sample_name, microsec_artifacts, res_suffix=".tsv")
-		micr_filtering_summaries.append(ideafix_summary)
+		## Generate Filtering Summary
+		sample_filtering_summary = get_filtering_summary(
+			sample_name=sample_name,
+			model=model,
+			snvf_var_set=source_variant_set,
+			msec_var_set=msec_variant_set,
+			msec_filter_col=mesc_filter_col,
+			filtered_var_set=new_variant_set,
+			source_variants=snvf,
+			msec_artifacts=msec_artifacts,
+			selected_snvf=filtered_snvf
+		)
 
-		gatk_summary = filter_micr_artifacts("gatk-obmm", dataset, snvf_set_name, new_snvf_set_name, sample_name, microsec_artifacts, res_suffix=".tsv")
-		micr_filtering_summaries.append(gatk_summary)
+		filtering_summary.append(sample_filtering_summary)
 
-	micr_filtering_summaries_df = pl.concat(micr_filtering_summaries, how="diagonal_relaxed")
-	micr_filtering_summaries_df.write_csv(f"{dataset}/{new_snvf_set_name}/micr_filtering_summary.tsv", separator="\t")
-	
+	pl.DataFrame(filtering_summary).write_csv(f"{dataset}/{new_variant_set}/{os.path.basename(__file__).split(".")[0]}_filtering-summary.tsv", separator="\t")
 
-filter_sample_set(
-    dataset = "EGAD00001004066",
-    msec_set_name = "somatic_filtered-dp20-blacklist",
-    snvf_set_name = "somatic_filtered-dp20-blacklist",
-    new_snvf_set_name = "somatic_filtered-dp20-blacklist-micr1234",
-    msec_filter_col = "msec_filter_1234"
-)
+
+# ## SNVF MICR Filtering
+filter_dataset(
+		dataset = "EGAD00001004066",
+		source_variant_set = "somatic_filtered-exome-blacklist",
+		msec_variant_set = "somatic_filtered-exome",
+		new_variant_set = "somatic_filtered-exome-blacklist-micr1234",
+		mesc_filter_col = "msec_filter_1234"
+	)
+
