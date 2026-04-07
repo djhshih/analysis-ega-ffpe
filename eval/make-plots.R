@@ -2,9 +2,12 @@
 source("../common-ffpe-snvf/R/plot.R")
 
 dset_dirs <- c(
-	"EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
-	"EGAD00001004066/somatic_filtered-dp20-blacklist",
-	"EGAD00001004066/somatic_filtered-dp20",
+	"EGAD00001004066/somatic_filtered-exome-blacklist-micr1234",
+	"EGAD00001004066/somatic_filtered-exome-blacklist",
+	"EGAD00001004066/somatic_filtered-exome",
+	# "EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
+	# "EGAD00001004066/somatic_filtered-dp20-blacklist",
+	# "EGAD00001004066/somatic_filtered-dp20",
 	"EGAD00001004066/somatic_filtered"
 )
 
@@ -65,3 +68,4 @@ for (dir in dset_dirs){
 
 	}
 }
+

@@ -5,50 +5,6 @@ source("../common-ffpe-snvf/R/eval.R")
 
 #######################################################
 
-#' Load or Build Truth Set for a Case and Variant Caller
-#'
-#' This function loads a previously cached truth set for a given case and variant caller,
-#' or constructs a new truth set if one does not already exist. The truth set is created
-#' by taking the union of variants from matched fresh-frozen (FF) VCF files and cached by
-#' assigning unique identifiers to each variant.
-#'
-#' @param case_id Character. The identifier for the case/tumor being analyzed.
-#' @param variant_caller Character. The name of the variant caller used to generate
-#'   the VCF files (e.g., "mutect2", "varscan2").
-#' @param matched_ff_vcf_paths Character vector. File paths to the matched fresh-frozen
-#'   VCF files to be used for creating the truth set.
-#' @param outdir Character. The output directory where truth sets will be cached.
-#'   Defaults to \code{main.outdir}.
-#'
-#' @return A data frame or tibble containing the truth set with unique variant identifiers.
-#'   If cached, returns the previously saved truth set. Otherwise, returns a newly
-#'   constructed truth set created from the union of variants in matched_ff_vcf_paths.
-#'
-#' @details
-#' Truth sets are cached in the \code{truth_sets} subdirectory of \code{outdir}
-#' with the naming convention: \code{<case_id>_<variant_caller>.tsv}
-#'
-#' @examples
-#' \dontrun{
-#' truth <- get_truth_set("CASE001", "mutect2", c("file1.vcf", "file2.vcf"))
-get_truth_set <- function(case_id, matched_ff_vcf_paths, outdir = main.outdir) {
-	truth_set_dir <- file.path(outdir, "truth_sets")
-	dir.create(truth_set_dir, showWarnings = FALSE, recursive = TRUE)
-	truth_set_path <- file.path(truth_set_dir, paste(basename(matched_ff_vcf_paths), collapse = "_"), sprintf("%s.tsv", case_id))
-
-	if (file.exists(truth_set_path)){
-		message(cat("\tGround truth set exists, reading from file"))
-		truth <- qread(truth_set_path)
-	} else {
-		message(cat("\tCached ground truth set does not exists, generating ground truth set from:"))
-		message(cat("\t", matched_ff_vcf_paths))
-		truth <- snv_union(matched_ff_vcf_paths)
-		truth <- add_id(truth)
-		qwrite(truth, truth_set_path)
-	}
-	return(truth)
-}
-
 #' Evaluate a Set of Tumor Samples
 #'
 #' This function evaluates the performance of a variant calling model on a set of FFPE (Formalin-Fixed Paraffin-Embedded)
@@ -93,12 +49,14 @@ evaluate_sample_set <- function(
 	ffpe_tumoral,
 	frozen_tumoral,
 	model_name,
-	ff_vcf_dir,
 	ffpe_snvf_dir,
 	ground_truth_dir,
 	case_id_col = "tissue_type",
-	sample_id_col = "sample_name"
+	sample_id_col = "sample_name",
+	snvf_ext="tsv"
 ) {
+
+	message(sprintf("Evaluating %s | Using FFPE VCFs from: %s, Ground Truths from: %s", model_name, ffpe_snvf_dir, ground_truth_dir))
 
 	for (i in seq_len(nrow(ffpe_tumoral))){
 
@@ -110,10 +68,12 @@ evaluate_sample_set <- function(
 		variant_set <- basename(ffpe_snvf_dir)
 		outdir_root <- file.path(dataset, variant_set)
 
-		snvf_path <- file.path(ffpe_snvf_dir, model_name, sample_name, sprintf("%s.%s.tsv", sample_name, model_name))
+		message(sprintf("	%d. Processing Case: %s Sample: %s", i, case_id, sample_name))
+
+		snvf_path <- file.path(ffpe_snvf_dir, model_name, sample_name, sprintf("%s.%s.%s", sample_name, model_name, snvf_ext))
 
 		if (!file.exists(snvf_path)){
-			message(sprintf("	Warning: %s SNVF does not exist at %s . Skipping", model_name, snvf_path))
+			message(sprintf("		Warning: %s SNVF does not exist at %s . Skipping", model_name, snvf_path))
 			next
 		}
 
@@ -124,24 +84,22 @@ evaluate_sample_set <- function(
 		# read model's score for each sample
 		d <- read.delim(snvf_path)
 		# Apply model specific processing
-		d <- preprocess_ideafix(d)
+		d <- preprocess_filter(d, model_name)
 		d <- merge(ground_truth, d, by = c("chrom", "pos", "ref", "alt"))
 		
 		## Check if true labels exist in the variant_score_truth table (d)
 		## If not this means there's no overlap between FFPE and FF variants
 		## Cases like these are skipped as evaluation is not supported by precrec
 		if((nrow(d[d$truth, ]) == 0)){
-			message(sprintf("	no true labels exist for %s", snvf_path))
+			message(sprintf("		No true labels exist for %s | Skipping...", snvf_path))
 			write_sample_eval(d, NULL, outdir_root, sample_name, model_name)
 			next
 		}
 		if((nrow(d[!d$truth, ]) == 0)){
-			message(sprintf("	no false labels exist for %s", snvf_path))
+			message(sprintf("		No false labels exist for %s | Skipping...", snvf_path))
 			write_sample_eval(d, NULL, outdir_root, sample_name, model_name)
 			next
 		}
-
-		message(sprintf("	%s", snvf_path))
 
 		# Evaluate the filter's performance
 		res <- evaluate_filter(d, model_name, sample_name)
@@ -153,7 +111,7 @@ evaluate_sample_set <- function(
 
 	# Overall Evaluation
 	## The scores annotated with ground truth is combined into a single dataframe
-	message("	performing Evaluation across all samples")
+	message("	Performing Evaluation across all samples")
 
 	all_score_truth <- do.call(
 		rbind,
@@ -199,7 +157,6 @@ frozen_tumoral <- annot_table[(annot_table$preservation == "Frozen"), ]
 
 
 # Evaluate the ffpe filter
-message("Evaluating ideafix:")
 model_name <- "ideafix"
 
 ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
@@ -207,37 +164,58 @@ evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
 	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered",
 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered",
 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered"
 )
 
-## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+# ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+# evaluate_sample_set(
+# 	ffpe_tumoral = ffpe_tumoral,
+# 	frozen_tumoral = frozen_tumoral,
+# 	model_name = model_name,
+# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20",
+# 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20"
+# )
+
+# ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+# evaluate_sample_set(
+# 	ffpe_tumoral = ffpe_tumoral,
+# 	frozen_tumoral = frozen_tumoral,
+# 	model_name = model_name,
+# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist",
+# 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
+# )
+
+# ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
+# evaluate_sample_set(
+# 	ffpe_tumoral = ffpe_tumoral,
+# 	frozen_tumoral = frozen_tumoral,
+# 	model_name = model_name,
+# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
+# 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
+# )
+
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
 	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp20",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20",
-	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20"
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-exome",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-exome"
 )
 
-## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
 	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp20-blacklist",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist",
-	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-exome-blacklist",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-exome-blacklist"
 )
 
-## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
 	model_name = model_name,
-	ff_vcf_dir = "../vcf/EGAD00001004066/somatic_filtered-dp20-blacklist",
-	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
-	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
+	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-exome-blacklist-micr1234",
+	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-exome-blacklist"
 )
+
