@@ -111,7 +111,7 @@ def prepare_dataset_inputs(
 #### Prepare EGAD00001004066
 ## Create annotation table linking ffpe samples' vcf path and bam path 
 dataset = "EGAD00001004066"
-variant_set = "somatic_filtered-dp20-blacklist"
+variant_set = "somatic_filtered"
 ffpe_vcf_paths = [os.path.abspath(path) for path in sorted(glob.glob(f"{repo_root}/vcf/{dataset}/{variant_set}/*/*.vcf.gz")) if "FFPE" in path]
 
 sample_paths = (
@@ -128,6 +128,4 @@ prepare_dataset_inputs(
 	variant_set = variant_set, 
 	sample_paths = sample_paths
 )
-
-
 
