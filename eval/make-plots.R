@@ -5,9 +5,6 @@ dset_dirs <- c(
 	"EGAD00001004066/somatic_filtered-exome-blacklist-micr1234",
 	"EGAD00001004066/somatic_filtered-exome-blacklist",
 	"EGAD00001004066/somatic_filtered-exome",
-	# "EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
-	# "EGAD00001004066/somatic_filtered-dp20-blacklist",
-	# "EGAD00001004066/somatic_filtered-dp20",
 	"EGAD00001004066/somatic_filtered"
 )
 
@@ -21,51 +18,52 @@ models <- c(
 	"ffpolish" = "FFPolish"
 )
 
-for (dir in dset_dirs){
+for (dset_dir in dset_dirs){
 
-	tokens <- unlist(strsplit(dir, "/"))
-	dset <- tokens[length(tokens)]
-	message(sprintf("Processing dataset: %s", dset))
+	message(sprintf("Processing: %s", dset_dir))
 
 	## Set output directory
-	outdir_root <- file.path(dir, "plots")
+	outdir_root <- file.path(dset_dir, "plots")
 
 	## Make a vector with paths to all the precrec eval objects
-	roc_coord_paths <- sort(list.files(file.path(dir, "roc-prc-auc/precrec"), pattern = "all-models_roc_coordinates.tsv", recursive = TRUE, full.names = TRUE))
-	prc_coord_paths <- sort(list.files(file.path(dir, "roc-prc-auc/precrec"), pattern = "all-models_prc_coordinates.tsv", recursive = TRUE, full.names = TRUE))
+	roc_coord_paths <- sort(list.files(file.path(dset_dir, "roc-prc-auc/precrec"), pattern = "all-models_roc_coordinates.tsv", recursive = TRUE, full.names = TRUE))
+	prc_coord_paths <- sort(list.files(file.path(dset_dir, "roc-prc-auc/precrec"), pattern = "all-models_prc_coordinates.tsv", recursive = TRUE, full.names = TRUE))
 
-	## Plot display size parameters for debugging
-	# options(repr.plot.width = 6, repr.plot.height = 5)
+	stopifnot(length(roc_coord_paths) == length(prc_coord_paths))
+	if (length(roc_coord_paths) == 0) {
+		stop("No eval outputs found for: ", dset_dir)
+	}
 
 	## Create plots for each of the evaluated samples
 	message("Creating ROC PRC plot for:")
 
-	outdir <- glue("{outdir_root}/roc_prc_plots")
-	dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+	outdir <- file.path(outdir_root, "roc_prc_plots")
+	dir.create(file.path(outdir, "roc"), recursive = TRUE, showWarnings = FALSE)
+	dir.create(file.path(outdir, "prc"), recursive = TRUE, showWarnings = FALSE)
 
-	for (i in seq_len(length(roc_coord_paths))) {
+	# dset_key   <- sub("/.*", "", dset_dir)
+	# plot_title <- dset_author[[dset_key]]
 
+	for (i in seq_along(roc_coord_paths)) {
 		sample_name <- match_return_sample_name(roc_coord_paths[i], prc_coord_paths[i])
-		message(glue("\t {i}. {sample_name}"))
+		baseline_precision <- get_baseline_precision(dset_dir, sample_name)
+		message(sprintf("\t %d. %s", i, sample_name))
 
-		# ## Read in the variant set to count number and annotate the number of SNVs in the plot
-		# eval_snv_set <- qread(glue("PRJEB8754/vcf_pass-orient-pos-sb_ad_filtered/model-scores_truths/{sample_name}/{sample_name}_model-scores_truths.tsv"))
-		# snv_count <- nrow(eval_snv_set)
+		roc_coord <- read_delim_arrow(roc_coord_paths[i], delim = "\t")
+		prc_coord <- read_delim_arrow(prc_coord_paths[i], delim = "\t")
+		roc_coord$model <- unname(ifelse(roc_coord$model %in% names(models), models[roc_coord$model], roc_coord$model))
+		prc_coord$model <- unname(ifelse(prc_coord$model %in% names(models), models[prc_coord$model], prc_coord$model))
 
-		roc_coord <- qread(roc_coord_paths[i])
-		roc_coord$model <- ifelse(roc_coord$model %in% names(models), models[roc_coord$model], roc_coord$model)
+		plots <- make_roc_prc_plot(
+			roc_coord, 
+			prc_coord,
+			baseline_precision = baseline_precision
+			# title = plot_title,
+			# subtitle = sample_name
+		)
 
-		prc_coord <- qread(prc_coord_paths[i])
-		prc_coord$model <- ifelse(prc_coord$model %in% names(models), models[prc_coord$model], prc_coord$model)
-
-		plots <- make_roc_prc_plot(roc_coord, prc_coord, title = NULL, subtitle = NULL, caption = NULL, text_scale=2, line_width = 1.5, legend_rows = 3, individual_plots = TRUE, legend_scale = 0.8)
-
-		qdraw(plots$roc_prc, glue("{outdir}/{sample_name}_roc_prc_plot.pdf"), width = 8, height = 6)
-		dir.create(glue("{outdir}/roc"), recursive = TRUE, showWarnings = FALSE)
-		qdraw(plots$roc, glue("{outdir}/roc/{sample_name}_roc_plot.pdf"), width = 5, height = 6)
-		dir.create(glue("{outdir}/prc"), recursive = TRUE, showWarnings = FALSE)
-		qdraw(plots$prc, glue("{outdir}/prc/{sample_name}_prc_plot.pdf"), width = 5, height = 6)
-
+		qdraw(plots$roc_prc, file.path(outdir, paste0(sample_name, "_roc_prc_plot.pdf")), width = 13, height = 7)
+		qdraw(plots$roc, file.path(outdir, "roc", paste0(sample_name, "_roc_plot.pdf")), width = 7, height = 7)
+		qdraw(plots$prc, file.path(outdir, "prc", paste0(sample_name, "_prc_plot.pdf")), width = 7, height = 7)
 	}
 }
-
