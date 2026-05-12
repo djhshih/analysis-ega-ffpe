@@ -159,7 +159,6 @@ frozen_tumoral <- annot_table[(annot_table$preservation == "Frozen"), ]
 # Evaluate the ffpe filter
 model_name <- "gatk-obmm"
 
-## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
 	frozen_tumoral = frozen_tumoral,
@@ -167,33 +166,6 @@ evaluate_sample_set(
 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered",
 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered"
 )
-
-# ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20",
-# 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20"
-# )
-
-# ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist",
-# 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
-# )
-
-# ## Evaluate the tumor-only variants with DP>=10, blacklist and MICR artifacts removed [MicroSEC Filter 1234]
-# evaluate_sample_set(
-# 	ffpe_tumoral = ffpe_tumoral,
-# 	frozen_tumoral = frozen_tumoral,
-# 	model_name = model_name,
-# 	ffpe_snvf_dir = "../ffpe-snvf/EGAD00001004066/somatic_filtered-dp20-blacklist-micr1234",
-# 	ground_truth_dir = "../ground-truth/EGAD00001004066/somatic_filtered-dp20-blacklist"
-# )
 
 evaluate_sample_set(
 	ffpe_tumoral = ffpe_tumoral,
