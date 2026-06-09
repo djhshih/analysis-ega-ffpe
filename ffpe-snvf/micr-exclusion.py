@@ -52,7 +52,9 @@ def get_ffpe_snvf_paths(dataset: str, variant_set: str) -> list:
 		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.sobdetector.snv") +
 		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ideafix.tsv") +
 		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.gatk-obmm.tsv") +
-		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ffpolish.tsv")
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ffpolish.tsv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ffperase.tsv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.firevat.tsv")
 	)
 
 	return paths
@@ -88,7 +90,10 @@ def filter_dataset(
 		msec_artifacts = msec_res.filter(pl.col(mesc_filter_col).is_not_null())
 		
 		## Remove variants that is seen in MicroSEC artifacts table
-		filtered_snvf = snvf.join(msec_artifacts, left_on = ["chrom", "pos", "ref", "alt"], right_on=["Chr", "Pos", "Ref", "Alt"], how="anti")
+		if model == "ffperase":
+			filtered_snvf = snvf.join(msec_artifacts, left_on= ["CHR", "START", "REF", "ALT"], right_on=["Chr", "Pos", "Ref", "Alt"], how="anti")
+		else:
+			filtered_snvf = snvf.join(msec_artifacts, left_on = ["chrom", "pos", "ref", "alt"], right_on=["Chr", "Pos", "Ref", "Alt"], how="anti")
 
 		## Write filterd variants to disk
 		filtered_snvf_outdir = f"{repo_root}/ffpe-snvf/{dataset}/{new_variant_set}/{model}/{sample_name}"

@@ -52,7 +52,8 @@ def get_ffpe_snvf_paths(dataset: str, variant_set: str) -> list:
 		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.sobdetector.snv") +
 		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ideafix.tsv") +
 		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.gatk-obmm.tsv") +
-		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ffpolish.tsv")
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.ffpolish.tsv") +
+		glob.glob(f"{repo_root}/ffpe-snvf/{dataset}/{variant_set}/*/*/*.firevat.tsv")
 	)
 
 	return paths
@@ -77,7 +78,10 @@ def filter_dataset(dataset: str, source_variant_set: str, new_variant_set: str) 
 		target_vars_path = f"{vcf_dir}/{sample_name}/{sample_name}.vcf.gz"
 		target_vars = read_variants(target_vars_path)
 		
-		filtered_snvf = snvf.join(target_vars, on = ["chrom", "pos", "ref", "alt"], how="semi")
+		if model == "ffperase":
+			filtered_snvf = snvf.join(target_vars, left_on= ["CHR", "START", "REF", "ALT"], right_on= ["chrom", "pos", "ref", "alt"], how="semi")
+		else:
+			filtered_snvf = snvf.join(target_vars, on = ["chrom", "pos", "ref", "alt"], how="semi")
 
 		filtered_snvf_outdir = f"{repo_root}/ffpe-snvf/{dataset}/{new_variant_set}/{model}/{sample_name}"
 		os.makedirs(filtered_snvf_outdir, exist_ok=True)
