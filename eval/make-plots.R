@@ -15,7 +15,9 @@ models <- c(
 	"sobdetector" = "SOBDetector",
 	"microsec" = "MicroSEC",
 	"ideafix" = "Ideafix",
-	"ffpolish" = "FFPolish"
+	"ffpolish" = "FFPolish",
+	"ffperase" = "FFPErase",
+	"firevat" = "FIREVAT"
 )
 
 for (dset_dir in dset_dirs){
